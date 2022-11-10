@@ -29,7 +29,7 @@ var _ SDL_Widget = (*SDL_Shape)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLShape(x, y, w, h, id int32, bgColour, fgColour *sdl.Color, onClick func(SDL_Widget, int32, int32) bool) *SDL_Shape {
 	shape := &SDL_Shape{vxIn: make([]int16, 0), vyIn: make([]int16, 0), validRect: nil, onClick: onClick}
-	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, bgColour, fgColour)
+	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, bgColour, fgColour, WIDGET_STYLE_NONE)
 	return shape
 }
 
@@ -187,9 +187,9 @@ var _ SDL_Widget = (*SDL_Label)(nil)             // Ensure SDL_Button 'is a' SDL
 var _ SDL_TextWidget = (*SDL_Label)(nil)         // Ensure SDL_Button 'is a' SDL_TextWidget
 var _ SDL_TextureCacheWidget = (*SDL_Label)(nil) // Ensure SDL_Button 'is a' SDL_TextureCacheWidget
 
-func NewSDLLabel(x, y, w, h, id int32, text string, align ALIGN_TEXT, bgColour, fgColour *sdl.Color) *SDL_Label {
+func NewSDLLabel(x, y, w, h, id int32, text string, align ALIGN_TEXT, bgColour, fgColour *sdl.Color, style STYLE_BITS) *SDL_Label {
 	but := &SDL_Label{text: text, cacheInvalid: true, align: align, cacheKey: fmt.Sprintf("label:%d:%d", id, rand.Intn(100))}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, bgColour, fgColour)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, bgColour, fgColour, style)
 	return but
 }
 
@@ -232,19 +232,14 @@ func (b *SDL_Label) Click(md *SDL_MouseData) bool {
 
 func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsVisible() {
-		ctwe, ok := b.textureCache.Get(b.cacheKey)
-		if !ok || b.cacheInvalid {
-			var err error
-			ctwe, err = NewTextureCacheEntryForString(renderer, b.text, font, WidgetColourDim(b.fg, b.IsEnabled(), 2))
-			if err != nil {
-				renderer.SetDrawColor(255, 0, 0, 255)
-				renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
-				return nil
-			}
-			b.textureCache.Add(b.cacheKey, ctwe)
-			if b.align == ALIGN_FIT {
-				b.SetSize(ctwe.W, b.h)
-			}
+		ctwe, err := GetResourceInstance().UpdateTextureFromString(renderer, b.cacheKey, b.text, font, WidgetColourDim(b.fg, b.IsEnabled(), 2))
+		if err != nil {
+			renderer.SetDrawColor(255, 0, 0, 255)
+			renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
+			return nil
+		}
+		if b.align == ALIGN_FIT {
+			b.SetSize(ctwe.W, b.h)
 		}
 		aspect := float32(b.w) / float32(b.h)
 		inset := float32(b.h) / 4
@@ -293,9 +288,9 @@ type SDL_Button struct {
 var _ SDL_Widget = (*SDL_Button)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 var _ SDL_TextWidget = (*SDL_Button)(nil) // Ensure SDL_Button 'is a' SDL_TextWidget
 
-func NewSDLButton(x, y, w, h, id int32, text string, bgColour, fgColour *sdl.Color, deBounce int, onClick func(SDL_Widget, int32, int32) bool) *SDL_Button {
+func NewSDLButton(x, y, w, h, id int32, text string, bgColour, fgColour *sdl.Color, style STYLE_BITS, deBounce int, onClick func(SDL_Widget, int32, int32) bool) *SDL_Button {
 	but := &SDL_Button{text: text, onClick: onClick}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, bgColour, fgColour)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, bgColour, fgColour, style)
 	return but
 }
 
@@ -339,17 +334,12 @@ func (b *SDL_Button) Destroy() {
 
 func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.visible {
-		var cacheKey = fmt.Sprintf("%s.%s.%t", TEXTURE_CACHE_TEXT_PREF, b.text, b.IsEnabled() && b.notPressed)
-		ctwe, ok := b.textureCache.Get(cacheKey)
-		if !ok {
-			var err error
-			ctwe, err = NewTextureCacheEntryForString(renderer, b.text, font, WidgetColourDim(b.fg, b.IsEnabled(), 2))
-			if err != nil {
-				renderer.SetDrawColor(255, 0, 0, 255)
-				renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
-				return nil
-			}
-			b.textureCache.Add(cacheKey, ctwe)
+		cacheKey := fmt.Sprintf("%s.%s.%t", TEXTURE_CACHE_TEXT_PREF, b.text, b.IsEnabled() && b.notPressed)
+		ctwe, err := GetResourceInstance().UpdateTextureFromString(renderer, cacheKey, b.text, font, WidgetColourDim(b.fg, b.IsEnabled(), 2))
+		if err != nil {
+			renderer.SetDrawColor(255, 0, 0, 255)
+			renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
+			return nil
 		}
 		if b.bg != nil {
 			renderer.SetDrawColor(b.bg.R, b.bg.G, b.bg.B, b.bg.A)
@@ -389,9 +379,9 @@ type SDL_Image struct {
 var _ SDL_Widget = (*SDL_Image)(nil)      // Ensure SDL_Image 'is a' SDL_Widget
 var _ SDL_ImageWidget = (*SDL_Image)(nil) // Ensure SDL_Image 'is a' SDL_ImageWidget
 
-func NewSDLImage(x, y, w, h, id int32, textureName string, frame, frameCount int32, bgColour, fgColour *sdl.Color, deBounce int, onClick func(SDL_Widget, int32, int32) bool) *SDL_Image {
+func NewSDLImage(x, y, w, h, id int32, textureName string, frame, frameCount int32, bgColour, fgColour *sdl.Color, style STYLE_BITS, deBounce int, onClick func(SDL_Widget, int32, int32) bool) *SDL_Image {
 	but := &SDL_Image{textureName: textureName, frame: frame, frameCount: frameCount, onClick: onClick}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, bgColour, fgColour)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, bgColour, fgColour, style)
 	return but
 }
 
@@ -457,7 +447,7 @@ func (b *SDL_Image) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.SetDrawColor(b.bg.R, b.bg.G, b.bg.B, b.bg.A)
 			renderer.FillRect(borderRect)
 		}
-		image, irw, _, err := b.textureCache.GetTextureForName(b.textureName)
+		image, irw, _, err := GetResourceInstance().GetTextureForName(b.textureName)
 		if err != nil {
 			renderer.SetDrawColor(255, 0, 0, 255)
 			renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: 100, H: 100})
@@ -499,9 +489,9 @@ type SDL_Separator struct {
 
 var _ SDL_Widget = (*SDL_Separator)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
-func NewSDLSeparator(x, y, w, h, id int32, bgColour *sdl.Color) *SDL_Separator {
+func NewSDLSeparator(x, y, w, h, id int32, bgColour, fgColour *sdl.Color, style STYLE_BITS) *SDL_Separator {
 	but := &SDL_Separator{}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, bgColour, nil)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, bgColour, fgColour, style)
 	return but
 }
 
