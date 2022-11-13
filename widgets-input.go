@@ -38,9 +38,9 @@ type SDL_Entry struct {
 var _ SDL_Widget = (*SDL_Entry)(nil)   // Ensure SDL_Button 'is a' SDL_Widget
 var _ SDL_CanFocus = (*SDL_Entry)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
-func NewSDLEntry(x, y, w, h, id int32, text string, bgColour, fgColour *sdl.Color, style STYLE_BITS, onChange func(string, string, TEXT_CHANGE_TYPE) (string, error)) *SDL_Entry {
+func NewSDLEntry(x, y, w, h, id int32, text string, style STATE_BITS, onChange func(string, string, TEXT_CHANGE_TYPE) (string, error)) *SDL_Entry {
 	but := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, hasfocus: false, ctrlKeyDown: false, invalid: true, indent: 10, onChange: onChange, errorState: nil}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, bgColour, fgColour, style)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return but
 }
 
@@ -53,8 +53,8 @@ func (b *SDL_Entry) GetTextureCache() *SDL_TextureCache {
 }
 
 func (b *SDL_Entry) SetForeground(c *sdl.Color) {
-	if b.fg != c {
-		b.fg = c
+	if b.foreground != c {
+		b.foreground = c
 		b.invalid = true
 	}
 }
@@ -275,7 +275,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		var err error
 		var ec *SDL_TextureCacheEntry
 		if b.invalid {
-			err = GetResourceInstance().UpdateTextureCacheRunes(renderer, font, b.fg, b.text)
+			err = GetResourceInstance().UpdateTextureCacheRunes(renderer, font, b.foreground, b.text)
 			if err != nil {
 				renderer.SetDrawColor(255, 0, 0, 255)
 				renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
@@ -320,16 +320,16 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		}
 
 		//*********************************************************
-		if b.bg != nil {
+		if b.background != nil {
 			if b.errorState != nil {
-				renderer.SetDrawColor(100, 0, 0, b.bg.A)
+				renderer.SetDrawColor(100, 0, 0, b.background.A)
 			} else {
-				renderer.SetDrawColor(b.bg.R, b.bg.G, b.bg.B, b.bg.A)
+				renderer.SetDrawColor(b.background.R, b.background.G, b.background.B, b.background.A)
 			}
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
 		if b.dragging && b.hasfocus {
-			renderer.SetDrawColor(100, 100, 0, b.bg.A)
+			renderer.SetDrawColor(100, 100, 0, b.background.A)
 			if b.dragFrom > b.dragTo {
 				renderer.FillRect(&sdl.Rect{X: b.dragTo, Y: b.y + 1, W: b.dragFrom - b.dragTo, H: b.h - 2})
 			} else {
@@ -363,8 +363,8 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.SetDrawColor(255, 0, 0, 255)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
 		} else {
-			if b.fg != nil {
-				borderColour := WidgetColourDim(b.fg, b.IsEnabled(), 2)
+			if b.foreground != nil {
+				borderColour := WidgetColourDim(b.foreground, b.IsEnabled(), 2)
 				renderer.SetDrawColor(borderColour.R, borderColour.G, borderColour.B, borderColour.A)
 				renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
 			}

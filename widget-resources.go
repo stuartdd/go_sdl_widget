@@ -11,13 +11,10 @@ import (
 )
 
 type sdl_Resources struct {
-	font             *ttf.Font
-	textureCache     *SDL_TextureCache
-	cacheLock        sync.Mutex
-	backgroundColor  *sdl.Color
-	foregroundColor  *sdl.Color
-	borderColor      *sdl.Color
-	borderFocusColor *sdl.Color
+	font         *ttf.Font
+	textureCache *SDL_TextureCache
+	cacheLock    sync.Mutex
+	colours      [][]*sdl.Color
 }
 
 var sdlResourceInstanceLock = &sync.Mutex{}
@@ -29,12 +26,31 @@ func GetResourceInstance() *sdl_Resources {
 		defer sdlResourceInstanceLock.Unlock()
 		if sdlResourceInstance == nil {
 			sdlResourceInstance = &sdl_Resources{
-				textureCache:     NewTextureCache(),
-				backgroundColor:  &sdl.Color{R: 0, G: 100, B: 0, A: 255},
-				foregroundColor:  &sdl.Color{R: 0, G: 255, B: 0, A: 255},
-				borderColor:      &sdl.Color{R: 0, G: 255, B: 0, A: 255},
-				borderFocusColor: &sdl.Color{R: 255, G: 0, B: 0, A: 255},
+				textureCache: NewTextureCache(),
+				colours:      make([][]*sdl.Color, 4),
 			}
+			for i := 0; i < 4; i++ {
+				sdlResourceInstance.colours[i] = make([]*sdl.Color, WIDGET_COLOR_MAX)
+			}
+			sdlResourceInstance.colours[0][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[0][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[0][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[0][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+
+			sdlResourceInstance.colours[1][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[1][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 50, B: 0, A: 255}
+			sdlResourceInstance.colours[1][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[1][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
+
+			sdlResourceInstance.colours[2][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[2][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[2][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[2][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+
+			sdlResourceInstance.colours[3][WIDGET_COLOR_FG] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[3][WIDGET_COLOR_BG] = &sdl.Color{R: 150, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[3][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[3][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 		}
 	}
 	return sdlResourceInstance
@@ -43,39 +59,25 @@ func GetResourceInstance() *sdl_Resources {
 func (r *sdl_Resources) SetFont(font *ttf.Font) {
 	r.font = font
 }
+
 func (r *sdl_Resources) SetTextureCache(textureCache *SDL_TextureCache) {
 	r.textureCache = textureCache
 }
-func (r *sdl_Resources) SetBackgroundColor(backgroundColor *sdl.Color) {
-	r.backgroundColor = backgroundColor
-}
-func (r *sdl_Resources) SetForegroundColor(foregroundColor *sdl.Color) {
-	r.foregroundColor = foregroundColor
-}
-func (r *sdl_Resources) SetBorderColor(borderColor *sdl.Color) {
-	r.borderColor = borderColor
-}
-func (r *sdl_Resources) SetBorderFocusColor(borderFocusColor *sdl.Color) {
-	r.borderFocusColor = borderFocusColor
+
+func (r *sdl_Resources) SetColour(stateIndex, colorIndex int, c *sdl.Color) {
+	r.colours[stateIndex][colorIndex] = c
 }
 
 func (r *sdl_Resources) GetFont() *ttf.Font {
 	return r.font
 }
+
 func (r *sdl_Resources) GetTextureCache() *SDL_TextureCache {
 	return r.textureCache
 }
-func (r *sdl_Resources) GetBackgroundColor() *sdl.Color {
-	return r.backgroundColor
-}
-func (r *sdl_Resources) GetForegroundColor() *sdl.Color {
-	return r.foregroundColor
-}
-func (r *sdl_Resources) GetBorderColor() *sdl.Color {
-	return r.borderColor
-}
-func (r *sdl_Resources) GetBorderFocusColor() *sdl.Color {
-	return r.borderFocusColor
+
+func (r *sdl_Resources) GetColour(stateIndex int, colorIndex int) *sdl.Color {
+	return r.colours[stateIndex][colorIndex]
 }
 
 func (r *sdl_Resources) GetTextureForName(name string) (*sdl.Texture, int32, int32, error) {
