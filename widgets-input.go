@@ -20,7 +20,6 @@ type SDL_Entry struct {
 	history      []string
 	cursor       int
 	cursorTimer  int
-	hasfocus     bool
 	ctrlKeyDown  bool
 	textureCache *SDL_TextureCache
 
@@ -38,7 +37,7 @@ var _ SDL_Widget = (*SDL_Entry)(nil)   // Ensure SDL_Button 'is a' SDL_Widget
 var _ SDL_CanFocus = (*SDL_Entry)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLEntry(x, y, w, h, id int32, text string, style STATE_BITS, onChange func(string, string, TEXT_CHANGE_TYPE) (string, error)) *SDL_Entry {
-	but := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, hasfocus: false, ctrlKeyDown: false, invalid: true, indent: 10, onChange: onChange}
+	but := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, ctrlKeyDown: false, invalid: true, indent: 10, onChange: onChange}
 	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return but
 }
@@ -76,25 +75,13 @@ func (b *SDL_Entry) ClearSelection() {
 	b.dragFrom = 0
 }
 
-func (b *SDL_Entry) SetFocus(focus bool) {
-	if b.IsEnabled() {
-		b.hasfocus = focus
-	} else {
-		b.hasfocus = false
-	}
+func (b *SDL_Entry) SetFocused(focus bool) {
+	b.SDL_WidgetBase.SetFocused(focus)
 	b.invalid = true
 }
 
-func (b *SDL_Entry) HasFocus() bool {
-	if b.IsEnabled() {
-		return b.hasfocus
-	} else {
-		return false
-	}
-}
-
 func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
-	if b.IsEnabled() && b.HasFocus() {
+	if b.IsEnabled() && b.IsFocused() {
 		b.keyPressLock.Lock()
 		defer b.keyPressLock.Unlock()
 		oldValue := b.text
@@ -171,7 +158,7 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 		if oldValue != newValue && b.onChange != nil {
 			var err error
 			newValue, err = b.onChange(oldValue, newValue, onChangeType)
-			b.SetNotError(err == nil)
+			b.SetError(err != nil)
 		}
 		if newValue != oldValue {
 			if saveHistory {
@@ -193,7 +180,7 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 }
 
 func (b *SDL_Entry) SetCursor(i int) {
-	if b.HasFocus() {
+	if b.IsFocused() {
 		if i < 0 {
 			i = 0
 		}
@@ -313,7 +300,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
-		if b.dragging && b.hasfocus {
+		if b.dragging && b.IsFocused() {
 			renderer.SetDrawColor(100, 100, 0, b.background.A)
 			if b.dragFrom > b.dragTo {
 				renderer.FillRect(&sdl.Rect{X: b.dragTo, Y: b.y + 1, W: b.dragFrom - b.dragTo, H: b.h - 2})
@@ -327,7 +314,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		ty := (float32(b.h) - th) / 2
 
 		cursorNotVisible := true
-		paintCursor := b.IsEnabled() && b.HasFocus() && (sdl.GetTicks64()%1000) > 300
+		paintCursor := b.IsEnabled() && b.IsFocused() && (sdl.GetTicks64()%1000) > 300
 		for pos := b.leadin; pos < b.leadout; pos++ {
 			ec := list[pos]
 			renderer.Copy(ec.Texture, nil, &sdl.Rect{X: tx, Y: b.y + int32(ty), W: ec.W, H: ec.H})

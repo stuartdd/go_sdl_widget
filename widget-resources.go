@@ -32,25 +32,25 @@ func GetResourceInstance() *sdl_Resources {
 			for i := 0; i < 4; i++ {
 				sdlResourceInstance.colours[i] = make([]*sdl.Color, WIDGET_COLOR_MAX)
 			}
-			sdlResourceInstance.colours[0][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
-			sdlResourceInstance.colours[0][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
-			sdlResourceInstance.colours[0][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
-			sdlResourceInstance.colours[0][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
-			sdlResourceInstance.colours[1][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
-			sdlResourceInstance.colours[1][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 50, B: 0, A: 255}
-			sdlResourceInstance.colours[1][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
-			sdlResourceInstance.colours[1][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 50, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
 
-			sdlResourceInstance.colours[2][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
-			sdlResourceInstance.colours[2][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
-			sdlResourceInstance.colours[2][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
-			sdlResourceInstance.colours[2][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
-			sdlResourceInstance.colours[3][WIDGET_COLOR_FG] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
-			sdlResourceInstance.colours[3][WIDGET_COLOR_BG] = &sdl.Color{R: 150, G: 0, B: 0, A: 255}
-			sdlResourceInstance.colours[3][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
-			sdlResourceInstance.colours[3][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_FG] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BG] = &sdl.Color{R: 150, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 		}
 	}
 	return sdlResourceInstance

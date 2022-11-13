@@ -29,7 +29,7 @@ var _ SDL_Widget = (*SDL_Shape)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLShape(x, y, w, h, id int32, style STATE_BITS, onClick func(SDL_Widget, int32, int32) bool) *SDL_Shape {
 	shape := &SDL_Shape{vxIn: make([]int16, 0), vyIn: make([]int16, 0), validRect: nil, onClick: onClick}
-	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, WIDGET_STYLE_BORDER_BG)
+	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return shape
 }
 
@@ -83,10 +83,10 @@ func (s *SDL_Shape) Add(x, y int32) {
 func (b *SDL_Shape) Click(md *SDL_MouseData) bool {
 	if b.IsEnabled() && b.onClick != nil {
 		if b.deBounce > 0 {
-			b.SetNotClicked(false)
+			b.SetClicked(true)
 			defer func() {
 				time.Sleep(time.Millisecond * time.Duration(b.deBounce))
-				b.SetNotClicked(true)
+				b.SetClicked(false)
 			}()
 		}
 		return b.onClick(b, md.x, md.y)
@@ -318,10 +318,10 @@ func (b *SDL_Button) GetTextureCache() *SDL_TextureCache {
 func (b *SDL_Button) Click(md *SDL_MouseData) bool {
 	if b.IsEnabled() && b.onClick != nil {
 		if b.deBounce > 0 {
-			b.SetNotClicked(false)
+			b.SetClicked(true)
 			defer func() {
 				time.Sleep(time.Millisecond * time.Duration(b.deBounce))
-				b.SetNotClicked(true)
+				b.SetClicked(false)
 			}()
 		}
 		return b.onClick(b, md.x, md.y)
@@ -335,7 +335,7 @@ func (b *SDL_Button) Destroy() {
 
 func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsVisible() {
-		cacheKey := fmt.Sprintf("%s.%s.%t", TEXTURE_CACHE_TEXT_PREF, b.text, b.IsEnabled() && b.IsNotClicked())
+		cacheKey := fmt.Sprintf("%s.%s.%t", TEXTURE_CACHE_TEXT_PREF, b.text, b.IsEnabled() && !b.IsClicked())
 		ctwe, err := GetResourceInstance().UpdateTextureFromString(renderer, cacheKey, b.text, font, WidgetColourDim(b.foreground, b.IsEnabled(), 2))
 		if err != nil {
 			renderer.SetDrawColor(255, 0, 0, 255)
@@ -421,10 +421,10 @@ func (b *SDL_Image) GetTextureCache() *SDL_TextureCache {
 func (b *SDL_Image) Click(md *SDL_MouseData) bool {
 	if b.IsEnabled() && b.onClick != nil {
 		if b.deBounce > 0 {
-			b.SetNotClicked(false)
+			b.SetClicked(true)
 			defer func() {
 				time.Sleep(time.Millisecond * time.Duration(b.deBounce))
-				b.SetNotClicked(true)
+				b.SetClicked(false)
 			}()
 		}
 		return b.onClick(b, md.x, md.y)

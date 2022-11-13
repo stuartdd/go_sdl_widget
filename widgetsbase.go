@@ -31,19 +31,18 @@ const (
 	TEXT_CHANGE_FINISH
 	TEXT_CHANGE_NONE
 
-	WIDGET_STYLE_NONE        STATE_BITS = 0b0000000000000001
-	WIDGET_STYLE_BORDER_1    STATE_BITS = 0b0000000000000010
-	WIDGET_STYLE_BORDER_2    STATE_BITS = 0b0000000000000100
-	WIDGET_STYLE_DRAW_BG     STATE_BITS = 0b0000000000001000
-	WIDGET_STATE_ENABLED     STATE_BITS = 0b0000000000010000
-	WIDGET_STATE_VISIBLE     STATE_BITS = 0b0000000000100000
-	WIDGET_STATE_NOT_FOCUSED STATE_BITS = 0b0000000001000000
-	WIDGET_STATE_NOT_ERROR   STATE_BITS = 0b0000000010000000
-	WIDGET_STATE_NOT_CLICKED STATE_BITS = 0b0000000100000000
-	WIDGET_STATE_STA_BITS    STATE_BITS = 0b0000000111110000 // Clear state AND mask. Retains style.
-	WIDGET_STATE_ENA_BITS    STATE_BITS = 0b0000000000001111 // Clear style AND mask. Retains state.
-	WIDGET_STATE_ENA_SET     STATE_BITS = 0b0000000100110000 // Enabled visible and not-clicked
-	WIDGET_STYLE_BORDER_BG   STATE_BITS = WIDGET_STYLE_BORDER_1 | WIDGET_STYLE_DRAW_BG
+	WIDGET_STYLE_NONE          STATE_BITS = 0b0000000000000001
+	WIDGET_STYLE_DRAW_BORDER   STATE_BITS = 0b0000000000000010
+	WIDGET_STYLE_DRAW_BG       STATE_BITS = 0b0000000000001000
+	WIDGET_STYLE_BORDER_AND_BG STATE_BITS = WIDGET_STYLE_DRAW_BORDER | WIDGET_STYLE_DRAW_BG
+	WIDGET_STATE_ENABLED       STATE_BITS = 0b0000000000010000
+	WIDGET_STATE_VISIBLE       STATE_BITS = 0b0000000000100000
+	WIDGET_STATE_NOT_FOCUSED   STATE_BITS = 0b0000000001000000
+	WIDGET_STATE_NOT_ERROR     STATE_BITS = 0b0000000010000000
+	WIDGET_STATE_NOT_CLICKED   STATE_BITS = 0b0000000100000000
+	WIDGET_STATE_STA_BITS      STATE_BITS = 0b0000000111110000 // Clear state AND mask. Retains style.
+	WIDGET_STATE_ENA_BITS      STATE_BITS = 0b0000000000001111 // Clear style AND mask. Retains state.
+	WIDGET_STATE_ENA_SET       STATE_BITS = 0b0000000100110000 // Enabled visible and not-clicked
 
 	WIDGET_COLOR_FG     int = 0 // Section indexes
 	WIDGET_COLOR_BG     int = 1
@@ -51,20 +50,25 @@ const (
 	WIDGET_COLOR_ENTRY  int = 3
 	WIDGET_COLOR_MAX    int = 4
 
+	WIDGET_COLOUR_ENABLED = 0
+	WIDGET_COLOUR_DISABLE = 1
+	WIDGET_COLOUR_FOCUS   = 2
+	WIDGET_COLOUR_ERROR   = 3
+
 	DEG_TO_RAD float64 = (math.Pi / 180)
 )
 
 func getStateColourIndex(state STATE_BITS) int {
 	if state&WIDGET_STATE_ENA_SET == WIDGET_STATE_ENA_SET {
 		if state&WIDGET_STATE_NOT_ERROR == 0 {
-			return 3
+			return WIDGET_COLOUR_ERROR
 		}
 		if state&WIDGET_STATE_NOT_FOCUSED == 0 {
-			return 2
+			return WIDGET_COLOUR_FOCUS
 		}
-		return 0
+		return WIDGET_COLOUR_ENABLED
 	}
-	return 1
+	return WIDGET_COLOUR_DISABLE
 }
 
 var TEXTURE_CACHE_TEXT_PREF = "TxCaPr987"
@@ -81,12 +85,12 @@ type SDL_Widget interface {
 	IsVisible() bool               // Base
 	SetEnabled(bool)               // Base
 	IsEnabled() bool               // Base
-	SetNotError(bool)              // Base
-	IsNotError() bool              // Base
-	SetNotFocused(bool)            // Base
-	IsNotFocused() bool            // Base
-	SetNotClicked(bool)            // Base
-	IsNotClicked() bool            // Base
+	SetError(bool)                 // Base
+	IsError() bool                 // Base
+	SetFocused(bool)               // Base
+	IsFocused() bool               // Base
+	SetClicked(bool)               // Base
+	IsClicked() bool               // Base
 	SetPosition(int32, int32) bool // Base
 	GetPosition() (int32, int32)   // Base
 	SetSize(int32, int32) bool     // Base
@@ -111,8 +115,8 @@ type SDL_Widget interface {
 }
 
 type SDL_CanFocus interface {
-	SetFocus(focus bool)
-	HasFocus() bool
+	SetFocused(bool) // Base
+	IsFocused() bool // Base
 	KeyPress(int, bool, bool) bool
 	ClearSelection()
 }
@@ -248,40 +252,40 @@ func (b *SDL_WidgetBase) IsVisible() bool {
 	return (b.state & WIDGET_STATE_VISIBLE) == WIDGET_STATE_VISIBLE
 }
 
-func (b *SDL_WidgetBase) SetNotError(v bool) {
+func (b *SDL_WidgetBase) SetError(v bool) {
 	if v {
-		b.state = b.state | WIDGET_STATE_NOT_ERROR
-	} else {
 		b.state = b.state & ^WIDGET_STATE_NOT_ERROR
+	} else {
+		b.state = b.state | WIDGET_STATE_NOT_ERROR
 	}
 }
 
-func (b *SDL_WidgetBase) IsNotError() bool {
-	return (b.state & WIDGET_STATE_NOT_ERROR) == WIDGET_STATE_NOT_ERROR
+func (b *SDL_WidgetBase) IsError() bool {
+	return (b.state & WIDGET_STATE_NOT_ERROR) == 0
 }
 
-func (b *SDL_WidgetBase) SetNotClicked(v bool) {
+func (b *SDL_WidgetBase) SetClicked(v bool) {
 	if v {
-		b.state = b.state | WIDGET_STATE_NOT_CLICKED
-	} else {
 		b.state = b.state & ^WIDGET_STATE_NOT_CLICKED
-	}
-}
-
-func (b *SDL_WidgetBase) IsNotClicked() bool {
-	return (b.state & WIDGET_STATE_NOT_CLICKED) == WIDGET_STATE_NOT_CLICKED
-}
-
-func (b *SDL_WidgetBase) SetNotFocused(v bool) {
-	if v {
-		b.state = b.state | WIDGET_STATE_NOT_FOCUSED
 	} else {
-		b.state = b.state & ^WIDGET_STATE_NOT_FOCUSED
+		b.state = b.state | WIDGET_STATE_NOT_CLICKED
 	}
 }
 
-func (b *SDL_WidgetBase) IsNotFocused() bool {
-	return (b.state & WIDGET_STATE_NOT_FOCUSED) == WIDGET_STATE_NOT_FOCUSED
+func (b *SDL_WidgetBase) IsClicked() bool {
+	return (b.state & WIDGET_STATE_NOT_CLICKED) == 0
+}
+
+func (b *SDL_WidgetBase) SetFocused(v bool) {
+	if b.IsEnabled() && v {
+		b.state = b.state & ^WIDGET_STATE_NOT_FOCUSED
+	} else {
+		b.state = b.state | WIDGET_STATE_NOT_FOCUSED
+	}
+}
+
+func (b *SDL_WidgetBase) IsFocused() bool {
+	return (b.state & WIDGET_STATE_NOT_FOCUSED) == 0
 }
 
 func (b *SDL_WidgetBase) SetEnabled(e bool) {
@@ -334,14 +338,14 @@ func (b *SDL_WidgetBase) ShouldDrawBackground() bool {
 
 func (b *SDL_WidgetBase) SetDrawBorder(e bool) {
 	if e {
-		b.state = b.state | WIDGET_STYLE_BORDER_1
+		b.state = b.state | WIDGET_STYLE_DRAW_BORDER
 	} else {
-		b.state = b.state & ^WIDGET_STYLE_BORDER_1
+		b.state = b.state & ^WIDGET_STYLE_DRAW_BORDER
 	}
 }
 
 func (b *SDL_WidgetBase) ShouldDrawBorder() bool {
-	return (b.state & WIDGET_STYLE_BORDER_1) == WIDGET_STYLE_BORDER_1
+	return (b.state & WIDGET_STYLE_DRAW_BORDER) == WIDGET_STYLE_DRAW_BORDER
 }
 
 func (b *SDL_WidgetBase) GetForeground() *sdl.Color {
@@ -408,9 +412,9 @@ func (wg *SDL_WidgetGroup) AllWidgets() []*SDL_Widget {
 	return l
 }
 
-func (wg *SDL_WidgetGroup) SetFocus(id int32) {
+func (wg *SDL_WidgetGroup) SetFocused(id int32) {
 	for _, wList := range wg.wigetLists {
-		wList.SetFocus(id)
+		wList.SetFocused(id)
 	}
 }
 
@@ -538,11 +542,11 @@ func (wl *SDL_WidgetSubGroup) GetWidget(id int) *SDL_Widget {
 	return nil
 }
 
-func (wl *SDL_WidgetSubGroup) SetFocus(id int32) {
+func (wl *SDL_WidgetSubGroup) SetFocused(id int32) {
 	for _, w := range wl.list {
 		f, ok := (*w).(SDL_CanFocus)
 		if ok {
-			f.SetFocus((*w).GetWidgetId() == id)
+			f.SetFocused((*w).GetWidgetId() == id)
 		}
 	}
 }
@@ -551,7 +555,7 @@ func (wl *SDL_WidgetSubGroup) ClearFocus() {
 	for _, w := range wl.list {
 		f, ok := (*w).(SDL_CanFocus)
 		if ok {
-			f.SetFocus(false)
+			f.SetFocused(false)
 		}
 	}
 }
@@ -568,7 +572,7 @@ func (wl *SDL_WidgetSubGroup) GetFocused() SDL_CanFocus {
 	for _, w := range wl.list {
 		f, ok := (*w).(SDL_CanFocus)
 		if ok {
-			if f.HasFocus() {
+			if f.IsFocused() {
 				return f
 			}
 		}
@@ -580,7 +584,7 @@ func (wl *SDL_WidgetSubGroup) KeyPress(c int, ctrl, down bool) bool {
 	for _, w := range wl.list {
 		f, ok := (*w).(SDL_CanFocus)
 		if ok {
-			if f.HasFocus() {
+			if f.IsFocused() {
 				if f.KeyPress(c, ctrl, down) {
 					return true
 				}
