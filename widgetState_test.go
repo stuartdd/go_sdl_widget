@@ -4,7 +4,11 @@ import (
 	"testing"
 )
 
-func TestJsonDataRename(t *testing.T) {
+// func TestWidgetStateColourIndex(t *testing.T) {
+// 	w :=
+// }
+
+func TestWidgetBaseState(t *testing.T) {
 	w := NewSDLSeparator(0, 0, 0, 0, 99, WIDGET_STYLE_BORDER_1|WIDGET_STYLE_DRAW_BG)
 	assertStateBools(t, "Initial state", w, true, true, true, true, true)
 
@@ -63,16 +67,23 @@ func TestJsonDataRename(t *testing.T) {
 	w.SetDrawBackground(true)
 	assertBool(t, "Draw BG true", "ShouldDrawBackground", w.ShouldDrawBackground(), true)
 
-	assertBool(t, "Draw Border Initial", "ShouldDrawBackground", w.ShouldDrawBorder(), true)
+	assertBool(t, "Draw Border Initial", "ShouldDrawBorder", w.ShouldDrawBorder(), true)
 	w.SetDrawBorder(false)
-	assertBool(t, "Draw Border false", "ShouldDrawBackground", w.ShouldDrawBorder(), false)
+	assertBool(t, "Draw Border false", "ShouldDrawBorder", w.ShouldDrawBorder(), false)
 	w.SetDrawBorder(false)
-	assertBool(t, "Draw Border false", "ShouldDrawBackground", w.ShouldDrawBorder(), false)
+	assertBool(t, "Draw Border false", "ShouldDrawBorder", w.ShouldDrawBorder(), false)
 	w.SetDrawBorder(true)
-	assertBool(t, "Draw Border true", "ShouldDrawBackground", w.ShouldDrawBorder(), true)
+	assertBool(t, "Draw Border true", "ShouldDrawBorder", w.ShouldDrawBorder(), true)
 	w.SetDrawBorder(true)
-	assertBool(t, "Draw Border true", "ShouldDrawBackground", w.ShouldDrawBorder(), true)
+	assertBool(t, "Draw Border true", "ShouldDrawBorder", w.ShouldDrawBorder(), true)
 
+}
+
+func TestWidgetButtonInitial(t *testing.T) {
+	w := NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_BG, 0, nil)
+	assertStateBools(t, "NewSDLButton initial", w, true, true, true, true, true)
+	assertBool(t, "NewSDLButton initial", "ShouldDrawBackground", w.ShouldDrawBackground(), true)
+	assertBool(t, "NewSDLButton initial", "ShouldDrawBorder", w.ShouldDrawBorder(), true)
 }
 
 func assertStateBools(t *testing.T, message string, w SDL_Widget, ena, nfoc, ncli, nerr, vis bool) {

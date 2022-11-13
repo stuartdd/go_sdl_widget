@@ -43,6 +43,7 @@ const (
 	WIDGET_STATE_STA_BITS    STATE_BITS = 0b0000000111110000 // Clear state AND mask. Retains style.
 	WIDGET_STATE_ENA_BITS    STATE_BITS = 0b0000000000001111 // Clear style AND mask. Retains state.
 	WIDGET_STATE_ENA_SET     STATE_BITS = 0b0000000100110000 // Enabled visible and not-clicked
+	WIDGET_STYLE_BORDER_BG   STATE_BITS = WIDGET_STYLE_BORDER_1 | WIDGET_STYLE_DRAW_BG
 
 	WIDGET_COLOR_FG     int = 0 // Section indexes
 	WIDGET_COLOR_BG     int = 1
@@ -52,6 +53,19 @@ const (
 
 	DEG_TO_RAD float64 = (math.Pi / 180)
 )
+
+func getStateColourIndex(state STATE_BITS) int {
+	if state&WIDGET_STATE_ENA_SET == WIDGET_STATE_ENA_SET {
+		if state&WIDGET_STATE_NOT_ERROR == 0 {
+			return 3
+		}
+		if state&WIDGET_STATE_NOT_FOCUSED == 0 {
+			return 2
+		}
+		return 0
+	}
+	return 1
+}
 
 var TEXTURE_CACHE_TEXT_PREF = "TxCaPr987"
 
@@ -334,28 +348,28 @@ func (b *SDL_WidgetBase) GetForeground() *sdl.Color {
 	if b.foreground != nil {
 		return b.foreground
 	}
-	return GetResourceInstance().GetColour(0, WIDGET_COLOR_FG)
+	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_FG)
 }
 
 func (b *SDL_WidgetBase) GetBackground() *sdl.Color {
 	if b.background != nil {
 		return b.background
 	}
-	return GetResourceInstance().GetColour(0, WIDGET_COLOR_BG)
+	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_BG)
 }
 
 func (b *SDL_WidgetBase) GetBorderColour() *sdl.Color {
 	if b.borderColour != nil {
 		return b.borderColour
 	}
-	return GetResourceInstance().GetColour(0, WIDGET_COLOR_BORDER)
+	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_BORDER)
 }
 
 func (b *SDL_WidgetBase) GetEntryColour() *sdl.Color {
 	if b.entryColour != nil {
 		return b.entryColour
 	}
-	return GetResourceInstance().GetColour(0, WIDGET_COLOR_ENTRY)
+	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_ENTRY)
 }
 
 func (b *SDL_WidgetBase) Inside(x, y int32) bool {

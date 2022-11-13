@@ -27,14 +27,14 @@ type SDL_Shape struct {
 
 var _ SDL_Widget = (*SDL_Shape)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
-func NewSDLShape(x, y, w, h, id int32, onClick func(SDL_Widget, int32, int32) bool) *SDL_Shape {
+func NewSDLShape(x, y, w, h, id int32, style STATE_BITS, onClick func(SDL_Widget, int32, int32) bool) *SDL_Shape {
 	shape := &SDL_Shape{vxIn: make([]int16, 0), vyIn: make([]int16, 0), validRect: nil, onClick: onClick}
-	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, WIDGET_STYLE_NONE)
+	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, WIDGET_STYLE_BORDER_BG)
 	return shape
 }
 
-func NewSDLShapeArrowRight(x, y, w, h, id int32, onClick func(SDL_Widget, int32, int32) bool) *SDL_Shape {
-	sh := NewSDLShape(x, y, w, h, id, onClick)
+func NewSDLShapeArrowRight(x, y, w, h, id int32, style STATE_BITS, onClick func(SDL_Widget, int32, int32) bool) *SDL_Shape {
+	sh := NewSDLShape(x, y, w, h, id, style, onClick)
 	var halfH int32 = h / 2
 	var qtr1H int32 = h / 4
 	var thrd1W int32 = w / 6
@@ -100,10 +100,10 @@ func (b *SDL_Shape) Destroy() {
 func (s *SDL_Shape) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if s.IsVisible() {
 		s.GetRect() // Make sure we update the Out Arrays is the state of the shape was changed
-		if (s.state & WIDGET_STYLE_DRAW_BG) != 0 {
+		if s.ShouldDrawBackground() {
 			gfx.FilledPolygonColor(renderer, s.vxOut, s.vyOut, *s.GetBackground())
 		}
-		if (s.state & WIDGET_STYLE_BORDER_1) != 0 {
+		if s.ShouldDrawBorder() {
 			gfx.PolygonColor(renderer, s.vxOut, s.vyOut, *s.GetBorderColour())
 		}
 	}
@@ -256,14 +256,15 @@ func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		}
 		ty := (float32(b.h) - th) / 2
 
-		if b.background != nil {
-			renderer.SetDrawColor(b.background.R, b.background.G, b.background.B, b.background.A)
+		if b.ShouldDrawBackground() {
+			bc := b.GetBackground()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
 		renderer.Copy(ctwe.Texture, nil, &sdl.Rect{X: b.x + int32(tx), Y: b.y + int32(ty), W: int32(tw), H: int32(th)})
-		if b.foreground != nil {
-			borderColour := WidgetColourDim(b.foreground, b.IsEnabled(), 2)
-			renderer.SetDrawColor(borderColour.R, borderColour.G, borderColour.B, borderColour.A)
+		if b.ShouldDrawBorder() {
+			bc := b.GetBorderColour()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
 		}
 	}
@@ -341,8 +342,9 @@ func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 			return nil
 		}
-		if b.state&WIDGET_STYLE_DRAW_BG == WIDGET_STYLE_DRAW_BG {
-			renderer.SetDrawColor(b.background.R, b.background.G, b.background.B, b.background.A)
+		if b.ShouldDrawBackground() {
+			bc := b.GetBackground()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
 		// Center the text inside the buttonj
@@ -353,9 +355,9 @@ func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		tx := (float32(b.w) - tw) / 2
 		ty := (float32(b.h) - th) / 2
 		renderer.Copy(ctwe.Texture, nil, &sdl.Rect{X: b.x + int32(tx), Y: b.y + int32(ty), W: int32(tw), H: int32(th)})
-		if b.foreground != nil {
-			borderColour := WidgetColourDim(b.foreground, b.IsEnabled(), 2)
-			renderer.SetDrawColor(borderColour.R, borderColour.G, borderColour.B, borderColour.A)
+		if b.ShouldDrawBorder() {
+			bc := b.GetBorderColour()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
 		}
 	}
@@ -434,17 +436,9 @@ func (b *SDL_Image) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsVisible() {
 		borderRect := &sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h}
 		outRect := &sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h}
-		var bg *sdl.Color = nil
-		var fg *sdl.Color = nil
-		if b.IsEnabled() {
-			fg = b.foreground
-			bg = b.background
-		} else {
-			fg = WidgetColourDim(b.foreground, false, 1.5)
-		}
-		if bg != nil {
-			// Background
-			renderer.SetDrawColor(b.background.R, b.background.G, b.background.B, b.background.A)
+		if b.ShouldDrawBackground() {
+			bc := b.GetBackground()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(borderRect)
 		}
 		image, irw, _, err := GetResourceInstance().GetTextureForName(b.textureName)
@@ -453,9 +447,9 @@ func (b *SDL_Image) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: 100, H: 100})
 			return nil
 		}
-		if bg != nil || fg != nil {
-			outRect = widgetShrinkRect(outRect, 4)
-		}
+		// if bg != nil || fg != nil {
+		// 	outRect = widgetShrinkRect(outRect, 4)
+		// }
 		if b.frameCount > 1 {
 			w := (irw / b.frameCount)
 			x := (w * b.frame)
@@ -465,9 +459,9 @@ func (b *SDL_Image) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		} else {
 			renderer.Copy(image, nil, outRect)
 		}
-		// Border
-		if fg != nil {
-			renderer.SetDrawColor(fg.R, fg.G, fg.B, fg.A)
+		if b.ShouldDrawBorder() {
+			bc := b.GetBorderColour()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
 		}
 	}
@@ -501,8 +495,9 @@ func (b *SDL_Separator) Click(md *SDL_MouseData) bool {
 
 func (b *SDL_Separator) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsEnabled() {
-		if b.background != nil {
-			renderer.SetDrawColor(b.background.R, b.background.G, b.background.B, b.background.A)
+		if b.ShouldDrawBackground() {
+			bc := b.GetBorderColour()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
 	}

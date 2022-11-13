@@ -25,7 +25,6 @@ type SDL_Entry struct {
 	textureCache *SDL_TextureCache
 
 	invalid          bool
-	errorState       error
 	leadin           int
 	leadout          int
 	indent           int32
@@ -39,7 +38,7 @@ var _ SDL_Widget = (*SDL_Entry)(nil)   // Ensure SDL_Button 'is a' SDL_Widget
 var _ SDL_CanFocus = (*SDL_Entry)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLEntry(x, y, w, h, id int32, text string, style STATE_BITS, onChange func(string, string, TEXT_CHANGE_TYPE) (string, error)) *SDL_Entry {
-	but := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, hasfocus: false, ctrlKeyDown: false, invalid: true, indent: 10, onChange: onChange, errorState: nil}
+	but := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, hasfocus: false, ctrlKeyDown: false, invalid: true, indent: 10, onChange: onChange}
 	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return but
 }
@@ -50,17 +49,6 @@ func (b *SDL_Entry) SetTextureCache(tc *SDL_TextureCache) {
 
 func (b *SDL_Entry) GetTextureCache() *SDL_TextureCache {
 	return b.textureCache
-}
-
-func (b *SDL_Entry) SetForeground(c *sdl.Color) {
-	if b.foreground != c {
-		b.foreground = c
-		b.invalid = true
-	}
-}
-
-func (b *SDL_Entry) SetErrorState(err error) {
-	b.errorState = err
 }
 
 func (b *SDL_Entry) pushHistory(val string) {
@@ -109,7 +97,6 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 	if b.IsEnabled() && b.HasFocus() {
 		b.keyPressLock.Lock()
 		defer b.keyPressLock.Unlock()
-		var err error
 		oldValue := b.text
 		newValue := b.text
 		onChangeType := TEXT_CHANGE_NONE
@@ -182,8 +169,9 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 			onChangeType = TEXT_CHANGE_INSERT
 		}
 		if oldValue != newValue && b.onChange != nil {
+			var err error
 			newValue, err = b.onChange(oldValue, newValue, onChangeType)
-			b.SetErrorState(err)
+			b.SetNotError(err == nil)
 		}
 		if newValue != oldValue {
 			if saveHistory {
@@ -320,12 +308,9 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		}
 
 		//*********************************************************
-		if b.background != nil {
-			if b.errorState != nil {
-				renderer.SetDrawColor(100, 0, 0, b.background.A)
-			} else {
-				renderer.SetDrawColor(b.background.R, b.background.G, b.background.B, b.background.A)
-			}
+		if b.ShouldDrawBackground() {
+			bc := b.GetBackground()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
 		if b.dragging && b.hasfocus {
@@ -359,15 +344,10 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.SetDrawColor(255, 255, 255, 255)
 			renderer.FillRect(&sdl.Rect{X: tx, Y: b.y, W: 2, H: b.h})
 		}
-		if b.hasfocus {
-			renderer.SetDrawColor(255, 0, 0, 255)
+		if b.ShouldDrawBackground() {
+			bc := b.GetBorderColour()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
-		} else {
-			if b.foreground != nil {
-				borderColour := WidgetColourDim(b.foreground, b.IsEnabled(), 2)
-				renderer.SetDrawColor(borderColour.R, borderColour.G, borderColour.B, borderColour.A)
-				renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
-			}
 		}
 	}
 	return nil
