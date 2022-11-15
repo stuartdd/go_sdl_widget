@@ -58,19 +58,6 @@ const (
 	DEG_TO_RAD float64 = (math.Pi / 180)
 )
 
-func getStateColourIndex(state STATE_BITS) int {
-	if state&WIDGET_STATE_ENA_SET == WIDGET_STATE_ENA_SET {
-		if state&WIDGET_STATE_NOT_ERROR == 0 {
-			return WIDGET_COLOUR_ERROR
-		}
-		if state&WIDGET_STATE_NOT_FOCUSED == 0 {
-			return WIDGET_COLOUR_FOCUS
-		}
-		return WIDGET_COLOUR_ENABLED
-	}
-	return WIDGET_COLOUR_DISABLE
-}
-
 var TEXTURE_CACHE_TEXT_PREF = "TxCaPr987"
 
 type SDL_Widget interface {
@@ -391,7 +378,6 @@ type SDL_WidgetGroup struct {
 }
 
 func NewWidgetGroup(font *ttf.Font) *SDL_WidgetGroup {
-	GetResourceInstance().SetFont(font)
 	return &SDL_WidgetGroup{wigetLists: make([]*SDL_WidgetSubGroup, 0)}
 }
 
@@ -752,16 +738,6 @@ func widgetShrinkRect(in *sdl.Rect, by int32) *sdl.Rect {
 	return &sdl.Rect{X: in.X + by, Y: in.Y + by, W: in.W - (by * 2), H: in.H - (by * 2)}
 }
 
-func WidgetColourDim(in *sdl.Color, doNothing bool, divBy float32) *sdl.Color {
-	if in == nil {
-		return in
-	}
-	if doNothing {
-		return in
-	}
-	return &sdl.Color{R: uint8(float32(in.R) / divBy), G: uint8(float32(in.G) / divBy), B: uint8(float32(in.B) / divBy), A: in.A}
-}
-
 func isInsideRect(x, y int32, r *sdl.Rect) bool {
 	if x < r.X {
 		return false
@@ -776,4 +752,17 @@ func isInsideRect(x, y int32, r *sdl.Rect) bool {
 		return false
 	}
 	return true
+}
+
+func getStateColourIndex(state STATE_BITS) int {
+	if state&WIDGET_STATE_ENA_SET == WIDGET_STATE_ENA_SET {
+		if state&WIDGET_STATE_NOT_ERROR == 0 {
+			return WIDGET_COLOUR_ERROR
+		}
+		if state&WIDGET_STATE_NOT_FOCUSED == 0 {
+			return WIDGET_COLOUR_FOCUS
+		}
+		return WIDGET_COLOUR_ENABLED
+	}
+	return WIDGET_COLOUR_DISABLE
 }

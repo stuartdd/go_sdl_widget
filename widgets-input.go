@@ -23,7 +23,7 @@ type SDL_Entry struct {
 	ctrlKeyDown  bool
 	textureCache *SDL_TextureCache
 
-	invalid          bool
+	_invalid         bool
 	leadin           int
 	leadout          int
 	indent           int32
@@ -37,7 +37,7 @@ var _ SDL_Widget = (*SDL_Entry)(nil)   // Ensure SDL_Button 'is a' SDL_Widget
 var _ SDL_CanFocus = (*SDL_Entry)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLEntry(x, y, w, h, id int32, text string, style STATE_BITS, onChange func(string, string, TEXT_CHANGE_TYPE) (string, error)) *SDL_Entry {
-	but := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, ctrlKeyDown: false, invalid: true, indent: 10, onChange: onChange}
+	but := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, ctrlKeyDown: false, _invalid: true, indent: 10, onChange: onChange}
 	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return but
 }
@@ -48,6 +48,11 @@ func (b *SDL_Entry) SetTextureCache(tc *SDL_TextureCache) {
 
 func (b *SDL_Entry) GetTextureCache() *SDL_TextureCache {
 	return b.textureCache
+}
+
+func (b *SDL_Entry) SetForeground(c *sdl.Color) {
+	b.SDL_WidgetBase.SetForeground(c)
+	b.Invalid(true)
 }
 
 func (b *SDL_Entry) pushHistory(val string) {
@@ -65,7 +70,8 @@ func (b *SDL_Entry) SetText(text string) {
 		defer b.keyPressLock.Unlock()
 		b.text = text
 		b.textLen = len(b.text)
-		b.invalid = true
+		b.Invalid(true)
+
 	}
 }
 
@@ -77,7 +83,7 @@ func (b *SDL_Entry) ClearSelection() {
 
 func (b *SDL_Entry) SetFocused(focus bool) {
 	b.SDL_WidgetBase.SetFocused(focus)
-	b.invalid = true
+	b.Invalid(true)
 }
 
 func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
@@ -172,7 +178,7 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 			case TEXT_CHANGE_BS:
 				b.MoveCursor(-1)
 			}
-			b.invalid = true
+			b.Invalid(true)
 			return true
 		}
 	}
@@ -198,7 +204,7 @@ func (b *SDL_Entry) MoveCursor(i int) {
 func (b *SDL_Entry) SetEnabled(e bool) {
 	if b.IsEnabled() != e {
 		b.SDL_WidgetBase.SetEnabled(e)
-		b.invalid = true
+		b.Invalid(true)
 	}
 }
 
@@ -230,17 +236,30 @@ func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
 			return true
 		}
 
-		list := GetResourceInstance().GetTextureListFromCache(b.text)
-		cur := b.x + b.indent
-		for pos := b.leadin; pos < b.leadout; pos++ {
-			ec := list[pos]
-			if cur > md.x {
-				b.SetCursor(pos)
-				return true
+		go func() {
+			list := GetResourceInstance().GetTextureListFromCacheRunes(b.text, b.GetForeground())
+			for list == nil {
+				sdl.Delay(100)
+				list = GetResourceInstance().GetTextureListFromCacheRunes(b.text, b.GetForeground())
 			}
-			cur = cur + ec.W
-		}
-		b.SetCursor(b.leadout)
+			//
+			// Scale the text to fit the height but keep the aspect ration the same so we know the width of each char
+			//
+			inset := float32(b.h) / 4
+			th := float32(b.h) - inset
+			cur := b.x + b.indent
+			for pos := b.leadin; pos < b.leadout; pos++ {
+				ec := list[pos]
+				aspect := float32(ec.W) / float32(ec.H)
+				tw := th * aspect
+				if cur > md.x {
+					b.SetCursor(pos)
+					return
+				}
+				cur = cur + int32(tw)
+			}
+			b.SetCursor(b.leadout)
+		}()
 	}
 	return false
 }
@@ -249,13 +268,15 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsVisible() {
 		var err error
 		var ec *SDL_TextureCacheEntry
-		if b.invalid {
-			err = GetResourceInstance().UpdateTextureCacheRunes(renderer, font, b.foreground, b.text)
+		if b._invalid {
+			b.Invalid(false)
+			err = GetResourceInstance().UpdateTextureCacheRunes(renderer, font, b.GetForeground(), b.text)
 			if err != nil {
 				renderer.SetDrawColor(255, 0, 0, 255)
 				renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 				return nil
 			}
+
 		}
 
 		// *******************************************************
@@ -266,7 +287,10 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			b.leadin = 0
 		}
 		b.leadout = b.textLen
-		list := GetResourceInstance().GetTextureListFromCache(b.text) // Get the textures and their widths
+		list := GetResourceInstance().GetTextureListFromCacheRunes(b.text, b.GetForeground()) // Get the textures and their widths
+		if list == nil {
+			return nil
+		}
 		// work out how many chars will fit in the rectangle
 		for pos := b.leadin; pos < b.textLen; pos++ {
 			ec = list[pos]
@@ -301,7 +325,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
 		if b.dragging && b.IsFocused() {
-			renderer.SetDrawColor(100, 100, 0, b.background.A)
+			renderer.SetDrawColor(100, 100, 0, 25)
 			if b.dragFrom > b.dragTo {
 				renderer.FillRect(&sdl.Rect{X: b.dragTo, Y: b.y + 1, W: b.dragFrom - b.dragTo, H: b.h - 2})
 			} else {
@@ -309,15 +333,26 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			}
 		}
 
-		tx = b.x + int32(b.indent)
-		th := float32(b.h) - float32(b.h)/4
+		//
+		// Scale the text to fit the height but keep the aspect ration the same so we know the width of each char
+		//   Need to use floats to prevent rounding
+		//
+		inset := float32(b.h) / 4
+		th := float32(b.h) - inset
 		ty := (float32(b.h) - th) / 2
 
+		tx = b.x + int32(b.indent)
 		cursorNotVisible := true
 		paintCursor := b.IsEnabled() && b.IsFocused() && (sdl.GetTicks64()%1000) > 300
+		//
+		//
+		// Copy each (scaled) char image to the renderer
+		//
 		for pos := b.leadin; pos < b.leadout; pos++ {
 			ec := list[pos]
-			renderer.Copy(ec.Texture, nil, &sdl.Rect{X: tx, Y: b.y + int32(ty), W: ec.W, H: ec.H})
+			aspect := float32(ec.W) / float32(ec.H)
+			tw := th * aspect
+			renderer.Copy(ec.Texture, nil, &sdl.Rect{X: tx, Y: b.y + int32(ty), W: int32(tw), H: int32(th)})
 			if paintCursor {
 				if pos == b.cursor {
 					renderer.SetDrawColor(255, 255, 255, 255)
@@ -325,7 +360,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 					cursorNotVisible = false
 				}
 			}
-			tx = tx + ec.W
+			tx = tx + int32(tw)
 		}
 		if cursorNotVisible && paintCursor {
 			renderer.SetDrawColor(255, 255, 255, 255)
@@ -341,4 +376,8 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 }
 func (b *SDL_Entry) Destroy() {
 	// Image cache takes care of all images!
+}
+
+func (b *SDL_Entry) Invalid(yes bool) {
+	b._invalid = yes
 }

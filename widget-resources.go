@@ -33,21 +33,21 @@ func GetResourceInstance() *sdl_Resources {
 				sdlResourceInstance.colours[i] = make([]*sdl.Color, WIDGET_COLOR_MAX)
 			}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
-			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 50, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
 
-			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
-			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_FG] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BG] = &sdl.Color{R: 150, G: 0, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
@@ -122,12 +122,15 @@ func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, applicati
 	return nil
 }
 
-func (r *sdl_Resources) GetTextureListFromCache(text string) []*SDL_TextureCacheEntry {
+func (r *sdl_Resources) GetTextureListFromCacheRunes(text string, colour *sdl.Color) []*SDL_TextureCacheEntry {
 	r.cacheLock.Lock()
 	defer r.cacheLock.Unlock()
 	list := make([]*SDL_TextureCacheEntry, len(text))
 	for i, c := range text {
-		ec := r.textureCache._textureMap[string(c)+"-cHaR"]
+		ec := r.textureCache._textureMap[fmt.Sprintf("|%c%d", c, GetColourId(colour))]
+		if ec == nil {
+			return nil
+		}
 		list[i] = ec
 	}
 	return list
@@ -137,7 +140,7 @@ func (r *sdl_Resources) UpdateTextureCacheRunes(renderer *sdl.Renderer, font *tt
 	r.cacheLock.Lock()
 	defer r.cacheLock.Unlock()
 	for _, c := range text {
-		key := string(c) + "-cHaR"
+		key := fmt.Sprintf("|%c%d", c, GetColourId(colour))
 		ok := r.textureCache.Peek(key)
 		if !ok {
 			ec, err := newTextureCacheEntryForRune(renderer, c, font, colour)
@@ -165,6 +168,10 @@ func (r *sdl_Resources) UpdateTextureFromString(renderer *sdl.Renderer, cacheKey
 	}
 	r.textureCache.Add(cacheKey, ctwe)
 	return ctwe, nil
+}
+
+func GetColourId(c *sdl.Color) uint32 {
+	return uint32(c.A) | uint32(c.R)<<8 | uint32(c.G)<<16 | uint32(c.B)<<24
 }
 
 /****************************************************************************************

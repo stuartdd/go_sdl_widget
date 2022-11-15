@@ -1,8 +1,24 @@
 package go_sdl_widget
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/veandco/go-sdl2/sdl"
 )
+
+func TestWidgetCharCache(t *testing.T) {
+	cols := make([]*sdl.Color, 0)
+	cols = append(cols, &sdl.Color{R: 255, G: 0, B: 0, A: 255})
+	cols = append(cols, &sdl.Color{R: 0, G: 255, B: 0, A: 255})
+	cols = append(cols, &sdl.Color{R: 0, G: 0, B: 255, A: 255})
+	cols = append(cols, &sdl.Color{R: 0, G: 0, B: 0, A: 255})
+	cols = append(cols, &sdl.Color{R: 0, G: 0, B: 0, A: 0})
+	for _, c := range cols {
+		i := GetColourId(c)
+		fmt.Printf("%10.0X %d\n", i, i)
+	}
+}
 
 func TestWidgetStateColourIndex(t *testing.T) {
 	w := NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_AND_BG, 0, nil)

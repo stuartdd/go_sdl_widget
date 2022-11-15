@@ -232,7 +232,7 @@ func (b *SDL_Label) Click(md *SDL_MouseData) bool {
 
 func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsVisible() {
-		ctwe, err := GetResourceInstance().UpdateTextureFromString(renderer, b.cacheKey, b.text, font, WidgetColourDim(b.foreground, b.IsEnabled(), 2))
+		ctwe, err := GetResourceInstance().UpdateTextureFromString(renderer, b.cacheKey, b.text, font, b.GetForeground())
 		if err != nil {
 			renderer.SetDrawColor(255, 0, 0, 255)
 			renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
@@ -266,6 +266,7 @@ func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			bc := b.GetBorderColour()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
+			renderer.DrawRect(&sdl.Rect{X: b.x + 2, Y: b.y + 2, W: b.w - 4, H: b.h - 4})
 		}
 	}
 	return nil
@@ -319,9 +320,11 @@ func (b *SDL_Button) Click(md *SDL_MouseData) bool {
 	if b.IsEnabled() && b.onClick != nil {
 		if b.deBounce > 0 {
 			b.SetClicked(true)
+			fmt.Println("Clicked")
 			defer func() {
 				time.Sleep(time.Millisecond * time.Duration(b.deBounce))
 				b.SetClicked(false)
+				fmt.Println("un-Clicked")
 			}()
 		}
 		return b.onClick(b, md.x, md.y)
@@ -336,7 +339,7 @@ func (b *SDL_Button) Destroy() {
 func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsVisible() {
 		cacheKey := fmt.Sprintf("%s.%s.%t", TEXTURE_CACHE_TEXT_PREF, b.text, b.IsEnabled() && !b.IsClicked())
-		ctwe, err := GetResourceInstance().UpdateTextureFromString(renderer, cacheKey, b.text, font, WidgetColourDim(b.foreground, b.IsEnabled(), 2))
+		ctwe, err := GetResourceInstance().UpdateTextureFromString(renderer, cacheKey, b.text, font, b.GetForeground())
 		if err != nil {
 			renderer.SetDrawColor(255, 0, 0, 255)
 			renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
@@ -359,6 +362,7 @@ func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			bc := b.GetBorderColour()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
+			renderer.DrawRect(&sdl.Rect{X: b.x + 2, Y: b.y + 2, W: b.w - 4, H: b.h - 4})
 		}
 	}
 	return nil
@@ -436,6 +440,9 @@ func (b *SDL_Image) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsVisible() {
 		borderRect := &sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h}
 		outRect := &sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h}
+		if b.ShouldDrawBorder() {
+			outRect = widgetShrinkRect(outRect, 4)
+		}
 		if b.ShouldDrawBackground() {
 			bc := b.GetBackground()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
@@ -463,6 +470,7 @@ func (b *SDL_Image) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			bc := b.GetBorderColour()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
+			renderer.DrawRect(&sdl.Rect{X: b.x + 2, Y: b.y + 2, W: b.w - 4, H: b.h - 4})
 		}
 	}
 	return nil
@@ -499,6 +507,12 @@ func (b *SDL_Separator) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			bc := b.GetBorderColour()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
+		}
+		if b.ShouldDrawBorder() {
+			bc := b.GetBorderColour()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
+			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
+			renderer.DrawRect(&sdl.Rect{X: b.x + 2, Y: b.y + 2, W: b.w - 4, H: b.h - 4})
 		}
 	}
 	return nil
