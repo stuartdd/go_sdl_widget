@@ -29,6 +29,7 @@ const (
 	TEXT_CHANGE_DELETE
 	TEXT_CHANGE_BS
 	TEXT_CHANGE_FINISH
+	TEXT_CHANGE_SELECTED
 	TEXT_CHANGE_NONE
 
 	WIDGET_STYLE_NONE          STATE_BITS = 0b0000000000000001
@@ -106,6 +107,7 @@ type SDL_CanFocus interface {
 	IsFocused() bool // Base
 	KeyPress(int, bool, bool) bool
 	ClearSelection()
+	GetSelectedText() string
 }
 
 type SDL_TextWidget interface {

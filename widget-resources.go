@@ -122,9 +122,28 @@ func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, applicati
 	return nil
 }
 
-func (r *sdl_Resources) GetTextureListFromCacheRunes(text string, colour *sdl.Color) []*SDL_TextureCacheEntry {
-	r.cacheLock.Lock()
-	defer r.cacheLock.Unlock()
+// Calls this in a seprate thread. It waits for the list to be returned.
+//
+// The list is built in the Draw method that is in a separate thread via:
+//
+//	UpdateTextureCacheRunes below
+// func (r *sdl_Resources) GetTextureListFromCachedRunesWait(text string, colour *sdl.Color) []*SDL_TextureCacheEntry {
+// 	r.cacheLock.Lock()
+// 	defer r.cacheLock.Unlock()
+// 	count := 0
+// 	list := r.GetTextureListFromCachedRunes(text, colour)
+// 	for list == nil {
+// 		sdl.Delay(100)
+// 		count++
+// 		if count > 10 {
+// 			return nil
+// 		}
+// 		list = GetResourceInstance().GetTextureListFromCachedRunes(text, colour)
+// 	}
+// 	return list
+// }
+
+func (r *sdl_Resources) GetTextureListFromCachedRunes(text string, colour *sdl.Color) []*SDL_TextureCacheEntry {
 	list := make([]*SDL_TextureCacheEntry, len(text))
 	for i, c := range text {
 		ec := r.textureCache._textureMap[fmt.Sprintf("|%c%d", c, GetColourId(colour))]
@@ -136,7 +155,7 @@ func (r *sdl_Resources) GetTextureListFromCacheRunes(text string, colour *sdl.Co
 	return list
 }
 
-func (r *sdl_Resources) UpdateTextureCacheRunes(renderer *sdl.Renderer, font *ttf.Font, colour *sdl.Color, text string) error {
+func (r *sdl_Resources) UpdateTextureCachedRunes(renderer *sdl.Renderer, font *ttf.Font, colour *sdl.Color, text string) error {
 	r.cacheLock.Lock()
 	defer r.cacheLock.Unlock()
 	for _, c := range text {
