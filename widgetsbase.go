@@ -136,6 +136,7 @@ type SDL_MouseData struct {
 	x, y, draggingToX, draggingToY int32
 	button                         uint8
 	down                           bool
+	clickCount                     int
 	dragged                        bool
 	dragging                       bool
 	widgetId                       int32
@@ -650,11 +651,19 @@ func (wl *SDL_WidgetSubGroup) Destroy() {
 }
 
 func (md *SDL_MouseData) String() string {
-	return fmt.Sprintf("x:%d y:%d Dx:%d Dy:%d ID:%d Btn:%d Down:%t Dragged:%t Dragging:%t", md.GetX(), md.GetY(), md.draggingToX, md.draggingToY, md.widgetId, md.button, md.IsDown(), md.IsDragged(), md.IsDragging())
+	return fmt.Sprintf("x:%d y:%d Dx:%d Dy:%d ID:%d Btn:%d Down:%t CCount:%d Dragged:%t Dragging:%t", md.GetX(), md.GetY(), md.draggingToX, md.draggingToY, md.widgetId, md.button, md.IsDown(), md.GetClickCount(), md.IsDragged(), md.IsDragging())
 }
 
 func (md *SDL_MouseData) IsDown() bool {
 	return md.down
+}
+
+func (md *SDL_MouseData) GetClickCount() int {
+	return md.clickCount
+}
+
+func (md *SDL_MouseData) SetClickCount(c int) {
+	md.clickCount = c
 }
 
 func (md *SDL_MouseData) IsDragged() bool {

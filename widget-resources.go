@@ -11,10 +11,12 @@ import (
 )
 
 type sdl_Resources struct {
-	font         *ttf.Font
-	textureCache *SDL_TextureCache
-	cacheLock    sync.Mutex
-	colours      [][]*sdl.Color
+	font            *ttf.Font
+	textureCache    *SDL_TextureCache
+	cacheLock       sync.Mutex
+	colours         [][]*sdl.Color
+	selecteCharsFwd []byte
+	selecteCharsRev []byte
 }
 
 var sdlResourceInstanceLock = &sync.Mutex{}
@@ -51,8 +53,12 @@ func GetResourceInstance() *sdl_Resources {
 			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BG] = &sdl.Color{R: 150, G: 0, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+
+			sdlResourceInstance.SetSelecteCharsFwd("/.")
+			sdlResourceInstance.SetSelecteCharsRev("/")
 		}
 	}
+
 	return sdlResourceInstance
 }
 
@@ -72,6 +78,21 @@ func (r *sdl_Resources) GetFont() *ttf.Font {
 	return r.font
 }
 
+func (b *sdl_Resources) SetSelecteCharsFwd(s string) {
+	b.selecteCharsFwd = []byte(s)
+}
+
+func (b *sdl_Resources) GetSelecteCharsFwd() string {
+	return string(b.selecteCharsFwd)
+}
+
+func (b *sdl_Resources) SetSelecteCharsRev(s string) {
+	b.selecteCharsRev = []byte(s)
+}
+
+func (b *sdl_Resources) GetSelecteCharsRev() string {
+	return string(b.selecteCharsRev)
+}
 func (r *sdl_Resources) GetTextureCache() *SDL_TextureCache {
 	return r.textureCache
 }
@@ -121,27 +142,6 @@ func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, applicati
 	}
 	return nil
 }
-
-// Calls this in a seprate thread. It waits for the list to be returned.
-//
-// The list is built in the Draw method that is in a separate thread via:
-//
-//	UpdateTextureCacheRunes below
-// func (r *sdl_Resources) GetTextureListFromCachedRunesWait(text string, colour *sdl.Color) []*SDL_TextureCacheEntry {
-// 	r.cacheLock.Lock()
-// 	defer r.cacheLock.Unlock()
-// 	count := 0
-// 	list := r.GetTextureListFromCachedRunes(text, colour)
-// 	for list == nil {
-// 		sdl.Delay(100)
-// 		count++
-// 		if count > 10 {
-// 			return nil
-// 		}
-// 		list = GetResourceInstance().GetTextureListFromCachedRunes(text, colour)
-// 	}
-// 	return list
-// }
 
 func (r *sdl_Resources) GetTextureListFromCachedRunes(text string, colour *sdl.Color) []*SDL_TextureCacheEntry {
 	list := make([]*SDL_TextureCacheEntry, len(text))

@@ -18,6 +18,8 @@ type SDL_Entry struct {
 	SDL_WidgetBase
 	text              string
 	selectedTextFlags []bool
+	selecteCharsFwd   []byte
+	selecteCharsRev   []byte
 	textLen           int
 	history           []string
 	cursor            int
@@ -54,6 +56,8 @@ var _ SDL_CanFocus = (*SDL_Entry)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 func NewSDLEntry(x, y, w, h, id int32, text string, style STATE_BITS, onChange func(string, string, TEXT_CHANGE_TYPE) (string, error)) *SDL_Entry {
 	ent := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, ctrlKeyDown: false, _invalid: true, indent: 10, onChange: onChange}
 	ent.ClearSelection()
+	ent.SetSelecteCharsFwd(GetResourceInstance().GetSelecteCharsFwd())
+	ent.SetSelecteCharsRev(GetResourceInstance().GetSelecteCharsRev())
 	ent.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return ent
 }
@@ -64,6 +68,55 @@ func (b *SDL_Entry) SetTextureCache(tc *SDL_TextureCache) {
 
 func (b *SDL_Entry) GetTextureCache() *SDL_TextureCache {
 	return b.textureCache
+}
+
+func (b *SDL_Entry) SetSelecteCharsFwd(s string) {
+	b.selecteCharsFwd = []byte(s)
+}
+
+func (b *SDL_Entry) GetSelecteCharsFwd() string {
+	return string(b.selecteCharsFwd)
+}
+
+func (b *SDL_Entry) findSelecteCharsFwd(c []byte) int {
+	cur := b.cursor
+	if cur >= len(c) && cur > 0 {
+		cur = len(c) - 1
+	}
+	for i := b.cursor; i < len(c); i++ {
+		for _, sc := range b.selecteCharsFwd {
+			if sc == c[i] {
+				return i
+			}
+		}
+	}
+	return len(c)
+}
+
+func (b *SDL_Entry) findSelecteCharsRev(c []byte) int {
+	cur := b.cursor
+	if cur >= len(c) && cur > 0 {
+		cur = len(c) - 1
+	}
+	for i := cur; i >= 0; i-- {
+		for _, sc := range b.selecteCharsRev {
+			if sc == c[i] {
+				if i > 0 {
+					return i + 1
+				}
+				return i
+			}
+		}
+	}
+	return 0
+}
+
+func (b *SDL_Entry) SetSelecteCharsRev(s string) {
+	b.selecteCharsRev = []byte(s)
+}
+
+func (b *SDL_Entry) GetSelecteCharsRev() string {
+	return string(b.selecteCharsRev)
 }
 
 func (b *SDL_Entry) SetForeground(c *sdl.Color) {
@@ -82,12 +135,24 @@ func (b *SDL_Entry) pushHistory(val string) {
 
 func (b *SDL_Entry) SetText(text string) {
 	if b.text != text {
-		b.keyPressLock.Lock()
-		defer b.keyPressLock.Unlock()
-		b.text = text
-		b.textLen = len(b.text)
-		b.ClearSelection()
-		b.Invalid(true)
+		b.setText(text)
+	}
+}
+
+func (b *SDL_Entry) setText(text string) {
+	b.keyPressLock.Lock()
+	defer b.keyPressLock.Unlock()
+	b.text = text
+	b.textLen = len(b.text)
+	b.ClearSelection()
+	b.Invalid(true)
+}
+
+func (b *SDL_Entry) insertAtCursor(text string) string {
+	if b.cursor < b.textLen {
+		return fmt.Sprintf("%s%s%s", b.text[0:b.cursor], text, b.text[b.cursor:])
+	} else {
+		return fmt.Sprintf("%s%s", b.text, text)
 	}
 }
 
@@ -106,6 +171,7 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 		oldValue := b.text
 		newValue := b.text
 		onChangeType := TEXT_CHANGE_NONE
+		insertLen := 1
 		saveHistory := true
 		if ctrl {
 			// if ctrl key then just remember its state (up or down) and return
@@ -115,6 +181,7 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 			}
 			// if the control key is down then it is a control sequence like CTRL-Z
 			if b.ctrlKeyDown {
+				b.ctrlKeyDown = false // Stop repeat keys - Ctrl key must be released and pressed again
 				switch c {
 				case sdl.K_z:
 					if len(b.history) > 0 {
@@ -123,13 +190,15 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 						saveHistory = false
 					}
 				case sdl.K_c:
-					fmt.Println("CTRL-C " + b.GetSelectedText())
 					sdl.SetClipboardText(b.GetSelectedText())
-					b.ctrlKeyDown = false
 					return true
 				case sdl.K_v:
-					fmt.Println("CTRL-V " + b.GetSelectedText())
-					return true
+					s, err := sdl.GetClipboardText()
+					if err == nil {
+						newValue = b.insertAtCursor(s)
+						onChangeType = TEXT_CHANGE_INSERT
+						insertLen = len(s)
+					}
 				}
 			} else {
 				if down {
@@ -179,7 +248,7 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 
 		} else {
 			// not a control key. insert it at the cursor
-			newValue = fmt.Sprintf("%s%c%s", oldValue[0:b.cursor], c, oldValue[b.cursor:])
+			newValue = b.insertAtCursor(fmt.Sprintf("%c", c))
 			onChangeType = TEXT_CHANGE_INSERT
 		}
 		if oldValue != newValue && b.onChange != nil {
@@ -195,9 +264,9 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 			b.textLen = len(b.text)
 			switch onChangeType {
 			case TEXT_CHANGE_INSERT:
-				b.MoveCursor(1)
+				b.MoveCursor(insertLen)
 			case TEXT_CHANGE_BS:
-				b.MoveCursor(-1)
+				b.MoveCursor(-insertLen)
 			}
 			b.Invalid(true)
 			b.ClearSelection()
@@ -244,6 +313,31 @@ func (b *SDL_Entry) ClearSelection() {
 	b.selFrom = 0
 	b.selTo = 0
 	b.selectedTextFlags = make([]bool, len(b.text))
+}
+
+func (b *SDL_Entry) selectAtCursor(clicks int) bool {
+	b.screenDataReady.Lock()
+	defer b.screenDataReady.Unlock()
+	switch clicks {
+	case 0, 1:
+		return false
+	case 2:
+		flags := make([]bool, len(b.text))
+		c := []byte(b.text)
+		from := b.findSelecteCharsRev(c)
+		too := b.findSelecteCharsFwd(c)
+		for i := from; i < too; i++ {
+			flags[i] = true
+		}
+		b.selectedTextFlags = flags
+	case 3:
+		flags := make([]bool, len(b.text))
+		for i := 0; i < len(b.selectedTextFlags); i++ {
+			flags[i] = true
+		}
+		b.selectedTextFlags = flags
+	}
+	return true
 }
 
 func (b *SDL_Entry) getSelectedTextFromFlags(sels []bool) string {
@@ -318,10 +412,11 @@ func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
 					}
 				}
 			}()
-
 			return true
 		}
-
+		if md.GetClickCount() > 1 {
+			return b.selectAtCursor(md.GetClickCount())
+		}
 		go func() {
 			b.screenDataReady.Lock()
 			defer b.screenDataReady.Unlock()
