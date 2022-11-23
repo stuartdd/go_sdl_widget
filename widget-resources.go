@@ -3,6 +3,7 @@ package go_sdl_widget
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/veandco/go-sdl2/img"
@@ -11,12 +12,14 @@ import (
 )
 
 type sdl_Resources struct {
-	font            *ttf.Font
-	textureCache    *SDL_TextureCache
-	cacheLock       sync.Mutex
-	colours         [][]*sdl.Color
-	selecteCharsFwd []byte
-	selecteCharsRev []byte
+	font               *ttf.Font
+	textureCache       *SDL_TextureCache
+	cacheLock          sync.Mutex
+	colours            [][]*sdl.Color
+	cursorInsertColour *sdl.Color
+	cursorAppendColour *sdl.Color
+	selecteCharsFwd    []byte
+	selecteCharsRev    []byte
 }
 
 var sdlResourceInstanceLock = &sync.Mutex{}
@@ -54,6 +57,9 @@ func GetResourceInstance() *sdl_Resources {
 			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
+			sdlResourceInstance.cursorInsertColour = &sdl.Color{R: 255, G: 255, B: 255, A: 255}
+			sdlResourceInstance.cursorAppendColour = &sdl.Color{R: 255, G: 0, B: 255, A: 255}
+
 			sdlResourceInstance.SetSelecteCharsFwd("/.")
 			sdlResourceInstance.SetSelecteCharsRev("/")
 		}
@@ -72,6 +78,22 @@ func (r *sdl_Resources) SetTextureCache(textureCache *SDL_TextureCache) {
 
 func (r *sdl_Resources) SetColour(stateIndex, colorIndex int, c *sdl.Color) {
 	r.colours[stateIndex][colorIndex] = c
+}
+
+func (b *sdl_Resources) GetCursorInsertColour() *sdl.Color {
+	return b.cursorInsertColour
+}
+
+func (b *sdl_Resources) SetCursorInsertColour(c *sdl.Color) {
+	b.cursorInsertColour = c
+}
+
+func (b *sdl_Resources) GetCursorAppendColour() *sdl.Color {
+	return b.cursorAppendColour
+}
+
+func (b *sdl_Resources) SetCursorAppendColour(c *sdl.Color) {
+	b.cursorAppendColour = c
 }
 
 func (r *sdl_Resources) GetFont() *ttf.Font {
@@ -153,6 +175,33 @@ func (r *sdl_Resources) GetTextureListFromCachedRunes(text string, colour *sdl.C
 		list[i] = ec
 	}
 	return list
+}
+
+func (r *sdl_Resources) GetScaledTextureListFromCachedRunesLinked(text string, colour *sdl.Color, offset, height int32) *sdl_TextureCacheEntryRune {
+	var rootEnt *sdl_TextureCacheEntryRune
+	var currentEnt *sdl_TextureCacheEntryRune
+	var nextEnt *sdl_TextureCacheEntryRune
+	var sw float32 = 0
+	ofs := float32(offset)
+
+	for i, c := range text {
+		tce := r.textureCache._textureMap[fmt.Sprintf("|%c%d", c, GetColourId(colour))]
+		if tce == nil {
+			return rootEnt
+		}
+		aspect := float32(tce.W) / float32(tce.H)
+		sw = float32(height) * aspect
+		nextEnt = &sdl_TextureCacheEntryRune{pos: i, te: tce, offset: int32(ofs), width: int32(sw), selected: false, next: nil}
+		if rootEnt == nil {
+			rootEnt = nextEnt
+			currentEnt = nextEnt
+		} else {
+			currentEnt.next = nextEnt
+			currentEnt = nextEnt
+		}
+		ofs = ofs + sw
+	}
+	return rootEnt
 }
 
 func (r *sdl_Resources) UpdateTextureCachedRunes(renderer *sdl.Renderer, font *ttf.Font, colour *sdl.Color, text string) error {
@@ -310,4 +359,120 @@ func newTextureCacheEntryForString(renderer *sdl.Renderer, text string, font *tt
 		return nil, err
 	}
 	return &SDL_TextureCacheEntry{Texture: txt, W: clip.W, H: clip.H, value: text}, nil
+}
+
+/****************************************************************************************
+* TextureCacheEntryRune holds the state of a character in an entry field.
+*   te is a SDL_TextureCacheEntry holding the image in a specific colour
+*   pos is the position in the entry text
+*   offset is the absolute x position on screen.
+*   width if the width of the char after it is acaled. This is different to tx.W
+* This is a linked list in entry text order.
+* A ne list is created if the entry text is changed
+**/
+
+type sdl_TextureCacheEntryRune struct {
+	pos           int // Position in the string this list represents
+	offset, width int32
+	selected      bool
+	visible       bool
+	te            *SDL_TextureCacheEntry     // The texture data for the char at pos in the string this list represents
+	next          *sdl_TextureCacheEntryRune // The next in the string this list represents. Nil at the end
+}
+
+func (er *sdl_TextureCacheEntryRune) String() string {
+	return fmt.Sprintf("TCER: pos:%d '%s' ofs:%d eidth:%d", er.pos, er.te.value, er.offset, er.width)
+}
+
+func (er *sdl_TextureCacheEntryRune) SetSelected(s bool) {
+	er.selected = s
+}
+
+func (er *sdl_TextureCacheEntryRune) IsSelected() bool {
+	return er.selected
+
+}
+
+func (er *sdl_TextureCacheEntryRune) SetAlSelected(s bool) {
+	n := er
+	for n != nil {
+		n.selected = s
+		n = n.next
+	}
+}
+
+func (er *sdl_TextureCacheEntryRune) SetVisible(s bool) {
+	er.visible = s
+}
+
+func (er *sdl_TextureCacheEntryRune) IsVisible() bool {
+	return er.visible
+
+}
+
+func (er *sdl_TextureCacheEntryRune) SetAllVisible(s bool) {
+	n := er
+	for n != nil {
+		n.visible = s
+		n = n.next
+	}
+}
+
+func (er *sdl_TextureCacheEntryRune) Inside(x int32) bool {
+	return (x > er.offset) && (x < er.offset+er.width)
+}
+
+func (er *sdl_TextureCacheEntryRune) GetSelectedText() string {
+	var sb strings.Builder
+	n := er.next
+	for n != nil {
+		if n.IsSelected() {
+			sb.WriteString(n.te.value)
+		}
+		n = n.next
+	}
+	return sb.String()
+}
+
+func (er *sdl_TextureCacheEntryRune) Count() int {
+	c := 0
+	n := er.next
+	for n != nil {
+		n = n.next
+		c++
+	}
+	return c
+}
+
+// func (er *sdl_TextureCacheEntryRune) Fit(width int32) int {
+// 	c := 0
+// 	w := er.width
+// 	if w >= width {
+// 		return c
+// 	}
+// 	n := er.next
+// 	for n != nil {
+// 		c++
+// 		w = w + n.width
+// 		if w >= width {
+// 			return c
+// 		}
+// 		n = n.next
+// 	}
+// 	return c
+// }
+
+func (er *sdl_TextureCacheEntryRune) Indexed(index int) *sdl_TextureCacheEntryRune {
+	if index == 0 {
+		return er
+	}
+	n := er.next
+	for n != nil {
+		index--
+		if index == 0 {
+			return n
+		}
+		n = n.next
+	}
+	return nil
 }

@@ -203,8 +203,8 @@ func (b *SDL_Label) GetTextureCache() *SDL_TextureCache {
 
 func (b *SDL_Label) SetForeground(c *sdl.Color) {
 	if b.foreground != c {
+		b.SDL_WidgetBase.SetForeground(c)
 		b.cacheInvalid = true
-		b.foreground = c
 	}
 }
 
@@ -241,11 +241,11 @@ func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		if b.align == ALIGN_FIT {
 			b.SetSize(ctwe.W, b.h)
 		}
-		aspect := float32(b.w) / float32(b.h)
-		inset := float32(b.h) / 4
-		th := float32(b.h) - inset
-		tw := th * aspect
+
+		th := float32(b.h) - (float32(b.h) / 4)
+		tw := float32(ctwe.W) * (float32(b.h) / float32(ctwe.H))
 		var tx float32
+
 		switch b.align {
 		case ALIGN_CENTER:
 			tx = (float32(b.w) - tw) / 2
@@ -351,12 +351,11 @@ func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
 		// Center the text inside the buttonj
-		aspect := float32(b.w) / float32(b.h)
-		inset := float32(b.h) / 4
-		th := float32(b.h) - inset
-		tw := th * aspect
+		th := float32(b.h) - (float32(b.h) / 4)
+		tw := float32(ctwe.W) * (float32(b.h) / float32(ctwe.H))
 		tx := (float32(b.w) - tw) / 2
 		ty := (float32(b.h) - th) / 2
+
 		renderer.Copy(ctwe.Texture, nil, &sdl.Rect{X: b.x + int32(tx), Y: b.y + int32(ty), W: int32(tw), H: int32(th)})
 		if b.ShouldDrawBorder() {
 			bc := b.GetBorderColour()

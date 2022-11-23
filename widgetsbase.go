@@ -100,6 +100,10 @@ type SDL_Widget interface {
 	ShouldDrawBorder() bool
 
 	Destroy() // Base
+
+	SetLog(func(int, string))
+	Log(int, string)
+	CanLog() bool
 }
 
 type SDL_CanFocus interface {
@@ -151,6 +155,7 @@ type SDL_WidgetBase struct {
 	borderColour *sdl.Color
 	entryColour  *sdl.Color
 	state        STATE_BITS
+	log          func(int, string)
 }
 
 /****************************************************************************************
@@ -192,6 +197,20 @@ func (b *SDL_WidgetBase) SetPosition(x, y int32) bool {
 
 func (b *SDL_WidgetBase) GetPosition() (int32, int32) {
 	return b.x, b.y
+}
+
+func (b *SDL_WidgetBase) SetLog(f func(int, string)) {
+	b.log = f
+}
+
+func (b *SDL_WidgetBase) CanLog() bool {
+	return b.log != nil
+}
+
+func (b *SDL_WidgetBase) Log(id int, s string) {
+	if b.log != nil {
+		b.log(id, s)
+	}
 }
 
 func (b *SDL_WidgetBase) SetSize(w, h int32) bool {
@@ -649,6 +668,12 @@ func (wl *SDL_WidgetSubGroup) Destroy() {
 		(*w).Destroy()
 	}
 }
+
+/****************************************************************************************
+* SDL_MouseData
+* Used to pass mouse activity to the widgets
+*
+**/
 
 func (md *SDL_MouseData) String() string {
 	return fmt.Sprintf("x:%d y:%d Dx:%d Dy:%d ID:%d Btn:%d Down:%t CCount:%d Dragged:%t Dragging:%t", md.GetX(), md.GetY(), md.draggingToX, md.draggingToY, md.widgetId, md.button, md.IsDown(), md.GetClickCount(), md.IsDragged(), md.IsDragging())
