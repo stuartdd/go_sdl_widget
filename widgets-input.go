@@ -15,47 +15,39 @@ import (
 **/
 type SDL_Entry struct {
 	SDL_WidgetBase
-	text              string
-	selectedTextFlags []bool
-	selecteCharsFwd   []byte
-	selecteCharsRev   []byte
-	textLen           int
-	history           []string
-	cursor            int
-	cursorAtEnd       bool
-	cursorTimer       int
-	ctrlKeyDown       bool
-	textureCache      *SDL_TextureCache
-	indent            int32
-	_invalid          bool
-	leadin, leadout   int
-	dragFrom, dragTo  int32
-	selFrom, selTo    int32
-	dragging          bool
-	onChange          func(string, string, TEXT_CHANGE_TYPE) (string, error)
-	screenData        *sdl_TextureCacheEntryRune
-	screenDataLock    sync.Mutex
-	keyPressLock      sync.Mutex
+	text             string
+	textLen          int
+	history          []string
+	cursor           int
+	cursorAtEnd      bool
+	cursorTimer      int
+	selecteCharsFwd  []byte
+	selecteCharsRev  []byte
+	selectFrom       int
+	selectToo        int
+	ctrlKeyDown      bool
+	indent           int32
+	_invalid         bool
+	leadin, leadout  int
+	dragFrom, dragTo int32
+	selFrom, selTo   int32
+	dragging         bool
+	onChange         func(string, string, TEXT_CHANGE_TYPE) (string, error)
+	screenData       *sdl_TextureCacheEntryRune
+	screenDataLock   sync.Mutex
+	keyPressLock     sync.Mutex
 }
 
 var _ SDL_Widget = (*SDL_Entry)(nil)   // Ensure SDL_Button 'is a' SDL_Widget
 var _ SDL_CanFocus = (*SDL_Entry)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLEntry(x, y, w, h, id int32, text string, style STATE_BITS, onChange func(string, string, TEXT_CHANGE_TYPE) (string, error)) *SDL_Entry {
-	ent := &SDL_Entry{text: text, textLen: len(text), textureCache: nil, cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, ctrlKeyDown: false, _invalid: true, indent: 10, onChange: onChange}
+	ent := &SDL_Entry{text: text, textLen: len(text), cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, ctrlKeyDown: false, _invalid: true, indent: 10, onChange: onChange}
 	ent.ClearSelection()
 	ent.SetSelecteCharsFwd(GetResourceInstance().GetSelecteCharsFwd())
 	ent.SetSelecteCharsRev(GetResourceInstance().GetSelecteCharsRev())
 	ent.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return ent
-}
-
-func (b *SDL_Entry) SetTextureCache(tc *SDL_TextureCache) {
-	b.textureCache = tc
-}
-
-func (b *SDL_Entry) GetTextureCache() *SDL_TextureCache {
-	return b.textureCache
 }
 
 func (b *SDL_Entry) SetSelecteCharsFwd(s string) {
@@ -66,12 +58,10 @@ func (b *SDL_Entry) GetSelecteCharsFwd() string {
 	return string(b.selecteCharsFwd)
 }
 
-func (b *SDL_Entry) findSelecteCharsFwd(c []byte) int {
+func (b *SDL_Entry) findSelecteCharsFwd() int {
+	c := []byte(b.text)
 	cur := b.cursor
-	if cur >= len(c) && cur > 0 {
-		cur = len(c) - 1
-	}
-	for i := b.cursor; i < len(c); i++ {
+	for i := cur; i < len(c); i++ {
 		for _, sc := range b.selecteCharsFwd {
 			if sc == c[i] {
 				return i
@@ -81,12 +71,13 @@ func (b *SDL_Entry) findSelecteCharsFwd(c []byte) int {
 	return len(c)
 }
 
-func (b *SDL_Entry) findSelecteCharsRev(c []byte) int {
+func (b *SDL_Entry) findSelecteCharsRev() int {
+	c := []byte(b.text)
 	cur := b.cursor
-	if cur >= len(c) && cur > 0 {
+	if cur >= len(c) {
 		cur = len(c) - 1
 	}
-	for i := cur; i >= 0; i-- {
+	for i := cur; i > 0; i-- {
 		for _, sc := range b.selecteCharsRev {
 			if sc == c[i] {
 				if i > 0 {
@@ -242,6 +233,9 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 		if oldValue != newValue && b.onChange != nil {
 			var err error
 			newValue, err = b.onChange(oldValue, newValue, onChangeType)
+			if b.CanLog() && err != nil {
+				b.Log(LOG_LEVEL_ERROR, err.Error())
+			}
 			b.SetError(err != nil)
 		}
 		if newValue != oldValue {
@@ -272,12 +266,29 @@ func (b *SDL_Entry) SetCursor(i int) {
 
 func (b *SDL_Entry) setCursorNoLock(i int) {
 	if b.IsFocused() {
+		if i < 0 {
+			i = 0
+		}
+		if i >= b.textLen {
+			i = b.textLen
+			b.cursorAtEnd = true
+		} else {
+			b.cursorAtEnd = false
+		}
+
 		li := b.leadin
 		lo := b.leadout
 		span := lo - li
-		if b.CanLog() {
-			b.Log(1, fmt.Sprintf("setC i:%d span:%d li:%d lo:%d end:%t\n", i, span, li, lo, b.cursorAtEnd))
+
+		if i > lo && !b.cursorAtEnd {
+			li = li + 1
 		}
+		if i < li {
+			li = li - 1
+		}
+		b.leadin = li
+		b.leadout = li + span
+		b.cursor = i
 	}
 }
 
@@ -302,33 +313,29 @@ func (b *SDL_Entry) GetSelectedText() string {
 	return b.screenData.GetSelectedText()
 }
 
+func (b *SDL_Entry) SetSelectedTextBounds(from, too int) {
+	b.screenData.SetSelectedTextBounds(from, too)
+}
+
 func (b *SDL_Entry) ClearSelection() {
 	b.screenDataLock.Lock()
 	defer b.screenDataLock.Unlock()
-	b.screenData.SetAlSelected(false)
+	b.screenData.SetAllSelected(false)
 }
 
 func (b *SDL_Entry) selectAtCursor(clicks int) bool {
-	b.screenDataLock.Lock()
-	defer b.screenDataLock.Unlock()
 	switch clicks {
 	case 0, 1:
 		return false
 	case 2:
-		flags := make([]bool, len(b.text))
-		c := []byte(b.text)
-		from := b.findSelecteCharsRev(c)
-		too := b.findSelecteCharsFwd(c)
-		for i := from; i < too; i++ {
-			flags[i] = true
+		from := b.findSelecteCharsRev()
+		too := b.findSelecteCharsFwd()
+		b.SetSelectedTextBounds(from, too)
+		if b.CanLog() {
+			b.Log(1, fmt.Sprintf("Sel:%s %d %d", b.GetSelectedText(), from, too))
 		}
-		b.selectedTextFlags = flags
 	case 3:
-		flags := make([]bool, len(b.text))
-		for i := 0; i < len(b.selectedTextFlags); i++ {
-			flags[i] = true
-		}
-		b.selectedTextFlags = flags
+		b.SetSelectedTextBounds(0, b.textLen-1)
 	}
 	return true
 }
@@ -349,6 +356,10 @@ func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
 			return true
 		} else {
 			b.dragging = false
+		}
+
+		if md.GetClickCount() > 1 {
+			return b.selectAtCursor(md.GetClickCount())
 		}
 
 		if md.IsDragged() {
@@ -374,7 +385,7 @@ func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
 						b.selFrom = linked.offset
 						sel = true
 					}
-					linked.selected = sel
+					linked.SetSelected(sel)
 					if linked.Inside(b.selTo) {
 						b.selTo = linked.offset + linked.width
 						sel = false
@@ -395,9 +406,6 @@ func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
 			}()
 			return true
 		}
-		if md.GetClickCount() > 1 {
-			return b.selectAtCursor(md.GetClickCount())
-		}
 		go func() {
 			b.screenDataLock.Lock()
 			defer b.screenDataLock.Unlock()
@@ -405,7 +413,6 @@ func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
 			if linked == nil {
 				return
 			}
-
 			notFound := true
 			for linked != nil {
 				if linked.Inside(md.x) {
@@ -431,8 +438,8 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		var err error
 
 		tx := b.x + b.indent
-		th := int32(float32(b.h) - float32(b.h)/4)
-		ty := int32((float32(b.h - th)) / 2)
+		th := b.h - int32(float32(b.h)/6)
+		ty := (b.h - th) / 2
 
 		if b._invalid {
 			b.Invalid(false)
@@ -442,7 +449,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 				renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 				return nil
 			}
-			sd := GetResourceInstance().GetScaledTextureListFromCachedRunesLinked(b.text, b.GetForeground(), tx, int32(th))
+			sd := GetResourceInstance().GetScaledTextureListFromCachedRunesLinked(b.text, b.GetForeground(), tx, th)
 			if sd == nil {
 				if err != nil {
 					renderer.SetDrawColor(255, 0, 0, 255)
@@ -499,10 +506,10 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		disp := leadIn
 		for disp != nil && tx+disp.width < max {
 			last = disp.pos
-			tw := float32(disp.width) * (float32(b.h) / float32(th))
-			rect = &sdl.Rect{X: tx, Y: b.y + ty, W: int32(tw), H: th}
+			tw := disp.width
+			rect = &sdl.Rect{X: tx, Y: b.y + ty, W: tw, H: th}
 			disp.SetVisible(true)
-			if disp.selected {
+			if disp.IsSelected() {
 				renderer.SetDrawColor(100, 100, 100, 25)
 				renderer.FillRect(rect)
 			}
@@ -512,7 +519,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 				renderer.SetDrawColor(c.R, c.G, c.B, c.A)
 				renderer.FillRect(&sdl.Rect{X: tx, Y: b.y, W: 5, H: b.h})
 			}
-			tx = tx + int32(tw)
+			tx = tx + tw
 			disp = disp.next
 		}
 		b.leadout = last

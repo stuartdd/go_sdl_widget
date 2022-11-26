@@ -13,8 +13,13 @@ type ROTATE_SHAPE_90 int
 type KBD_KEY_MODE int
 type TEXT_CHANGE_TYPE int
 type STATE_BITS uint16
+type LOG_LEVEL int
 
 const (
+	LOG_LEVEL_ERROR LOG_LEVEL = iota
+	LOG_LEVEL_WARN
+	LOG_LEVEL_OK
+
 	ALIGN_CENTER ALIGN_TEXT = iota
 	ALIGN_LEFT
 	ALIGN_RIGHT
@@ -101,8 +106,8 @@ type SDL_Widget interface {
 
 	Destroy() // Base
 
-	SetLog(func(int, string))
-	Log(int, string)
+	SetLog(func(LOG_LEVEL, string))
+	Log(LOG_LEVEL, string)
 	CanLog() bool
 }
 
@@ -155,7 +160,7 @@ type SDL_WidgetBase struct {
 	borderColour *sdl.Color
 	entryColour  *sdl.Color
 	state        STATE_BITS
-	log          func(int, string)
+	log          func(LOG_LEVEL, string)
 }
 
 /****************************************************************************************
@@ -199,7 +204,7 @@ func (b *SDL_WidgetBase) GetPosition() (int32, int32) {
 	return b.x, b.y
 }
 
-func (b *SDL_WidgetBase) SetLog(f func(int, string)) {
+func (b *SDL_WidgetBase) SetLog(f func(LOG_LEVEL, string)) {
 	b.log = f
 }
 
@@ -207,7 +212,7 @@ func (b *SDL_WidgetBase) CanLog() bool {
 	return b.log != nil
 }
 
-func (b *SDL_WidgetBase) Log(id int, s string) {
+func (b *SDL_WidgetBase) Log(id LOG_LEVEL, s string) {
 	if b.log != nil {
 		b.log(id, s)
 	}
