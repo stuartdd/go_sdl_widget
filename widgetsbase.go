@@ -34,7 +34,6 @@ const (
 	TEXT_CHANGE_DELETE
 	TEXT_CHANGE_BS
 	TEXT_CHANGE_FINISH
-	TEXT_CHANGE_SELECTED
 	TEXT_CHANGE_NONE
 
 	WIDGET_STYLE_NONE          STATE_BITS = 0b0000000000000001
@@ -139,16 +138,6 @@ type SDL_ImageWidget interface {
 type SDL_TextureCacheWidget interface {
 	SetTextureCache(*SDL_TextureCache)
 	GetTextureCache() *SDL_TextureCache
-}
-
-type SDL_MouseData struct {
-	x, y, draggingToX, draggingToY int32
-	button                         uint8
-	down                           bool
-	clickCount                     int
-	dragged                        bool
-	dragging                       bool
-	widgetId                       int32
 }
 
 type SDL_WidgetBase struct {
@@ -493,6 +482,12 @@ func (wg *SDL_WidgetGroup) Scale(s float32) {
 	}
 }
 
+func (wg *SDL_WidgetGroup) NextFrame() {
+	for _, w := range wg.wigetLists {
+		w.NextFrame()
+	}
+}
+
 func (wg *SDL_WidgetGroup) Destroy() {
 	for _, w := range wg.wigetLists {
 		w.Destroy()
@@ -581,6 +576,16 @@ func (wl *SDL_WidgetSubGroup) ClearSelection() {
 		}
 	}
 }
+
+func (wl *SDL_WidgetSubGroup) NextFrame() {
+	for _, w := range wl.list {
+		f, ok := (*w).(SDL_ImageWidget)
+		if ok {
+			f.NextFrame()
+		}
+	}
+}
+
 func (wl *SDL_WidgetSubGroup) GetFocused() SDL_CanFocus {
 	for _, w := range wl.list {
 		f, ok := (*w).(SDL_CanFocus)
@@ -679,9 +684,67 @@ func (wl *SDL_WidgetSubGroup) Destroy() {
 * Used to pass mouse activity to the widgets
 *
 **/
+type SDL_MouseData struct {
+	x, y, draggingX, draggingY int32
+	button                     uint8
+	down                       bool
+	clickCount                 int
+	dragged                    bool
+	dragging                   bool
+	widgetId                   int32
+}
 
 func (md *SDL_MouseData) String() string {
-	return fmt.Sprintf("x:%d y:%d Dx:%d Dy:%d ID:%d Btn:%d Down:%t CCount:%d Dragged:%t Dragging:%t", md.GetX(), md.GetY(), md.draggingToX, md.draggingToY, md.widgetId, md.button, md.IsDown(), md.GetClickCount(), md.IsDragged(), md.IsDragging())
+	return fmt.Sprintf("x:%d y:%d Dx:%d Dy:%d ID:%d Btn:%d Down:%t CCount:%d Dragged:%t Dragging:%t", md.GetX(), md.GetY(), md.draggingX, md.draggingY, md.widgetId, md.button, md.IsDown(), md.GetClickCount(), md.IsDragged(), md.IsDragging())
+}
+
+func (md *SDL_MouseData) ActionStartDragging(me *sdl.MouseMotionEvent) *SDL_MouseData {
+	md.dragging = true
+	md.dragged = false
+	md.clickCount = 1
+	md.setXY(me.X, me.Y)
+	return md
+}
+
+func (md *SDL_MouseData) ActionNotDragging(me *sdl.MouseMotionEvent) *SDL_MouseData {
+	md.draggingX = 0
+	md.draggingY = 0
+	md.dragging = false
+	md.widgetId = 0
+	md.clickCount = 1
+	md.setXY(me.X, me.Y)
+	return md
+}
+
+func (md *SDL_MouseData) ActionMouseDown(me *sdl.MouseButtonEvent, id int32) *SDL_MouseData {
+	if md.widgetId != id {
+		md.draggingX = 0
+		md.draggingY = 0
+		md.dragging = false
+		md.dragged = false
+	}
+	md.widgetId = id
+	md.button = me.Button
+	md.clickCount = int(me.Clicks)
+	md.setXY(me.X, me.Y)
+	return md
+}
+
+func (md *SDL_MouseData) ActionStopDragging(me *sdl.MouseButtonEvent) *SDL_MouseData {
+	md.dragging = false
+	md.dragged = true
+	md.setXY(me.X, me.Y)
+	return md
+}
+
+func (md *SDL_MouseData) ActionReset(me *sdl.MouseButtonEvent) *SDL_MouseData {
+	md.dragging = false
+	md.dragged = false
+	md.draggingX = 0
+	md.draggingY = 0
+	md.widgetId = 0
+	md.setXY(me.X, me.Y)
+	return md
 }
 
 func (md *SDL_MouseData) IsDown() bool {
@@ -692,10 +755,6 @@ func (md *SDL_MouseData) GetClickCount() int {
 	return md.clickCount
 }
 
-func (md *SDL_MouseData) SetClickCount(c int) {
-	md.clickCount = c
-}
-
 func (md *SDL_MouseData) IsDragged() bool {
 	return md.dragged
 }
@@ -704,35 +763,8 @@ func (md *SDL_MouseData) IsDragging() bool {
 	return md.dragging
 }
 
-func (md *SDL_MouseData) SetDragged(d bool) {
-	md.dragging = false
-	md.dragged = d
-}
-
-func (md *SDL_MouseData) SetDragging(d bool) {
-	if d {
-		md.dragging = true
-	} else {
-		md.draggingToX = 0
-		md.draggingToY = 0
-		md.dragging = false
-		md.widgetId = 0
-	}
-	md.dragged = false
-}
-
 func (md *SDL_MouseData) GetWidgetId() int32 {
 	return md.widgetId
-}
-
-func (md *SDL_MouseData) SetWidgetId(id int32) {
-	if md.widgetId != id {
-		md.draggingToX = 0
-		md.draggingToY = 0
-		md.dragging = false
-		md.dragged = false
-	}
-	md.widgetId = id
 }
 
 func (md *SDL_MouseData) GetY() int32 {
@@ -743,24 +775,26 @@ func (md *SDL_MouseData) GetX() int32 {
 	return md.x
 }
 
+func (md *SDL_MouseData) GetDraggingY() int32 {
+	return md.draggingY
+}
+
+func (md *SDL_MouseData) GetDraggingX() int32 {
+	return md.draggingX
+}
+
 func (md *SDL_MouseData) GetButtons() uint8 {
 	return md.button
 }
 
-func (md *SDL_MouseData) SetButtons(b uint8) {
-	md.button = b
-}
-
-func (md *SDL_MouseData) SetXY(x, y int32) {
+func (md *SDL_MouseData) setXY(x, y int32) {
 	if md.dragging {
-		md.draggingToX = x
-		md.draggingToY = y
+		md.draggingX = x
+		md.draggingY = y
 	} else {
 		md.x = x
 		md.y = y
 	}
-	md.down = true
-	md.dragged = false
 }
 
 /****************************************************************************************

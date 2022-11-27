@@ -2,6 +2,7 @@ package go_sdl_widget
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/veandco/go-sdl2/sdl"
@@ -23,14 +24,13 @@ type SDL_Entry struct {
 	cursorTimer      int
 	selecteCharsFwd  []byte
 	selecteCharsRev  []byte
-	selectFrom       int
-	selectToo        int
+	selectCharFrom   int
+	selectCharToo    int
 	ctrlKeyDown      bool
 	indent           int32
 	_invalid         bool
 	leadin, leadout  int
 	dragFrom, dragTo int32
-	selFrom, selTo   int32
 	dragging         bool
 	onChange         func(string, string, TEXT_CHANGE_TYPE) (string, error)
 	screenData       *sdl_TextureCacheEntryRune
@@ -58,38 +58,6 @@ func (b *SDL_Entry) GetSelecteCharsFwd() string {
 	return string(b.selecteCharsFwd)
 }
 
-func (b *SDL_Entry) findSelecteCharsFwd() int {
-	c := []byte(b.text)
-	cur := b.cursor
-	for i := cur; i < len(c); i++ {
-		for _, sc := range b.selecteCharsFwd {
-			if sc == c[i] {
-				return i
-			}
-		}
-	}
-	return len(c)
-}
-
-func (b *SDL_Entry) findSelecteCharsRev() int {
-	c := []byte(b.text)
-	cur := b.cursor
-	if cur >= len(c) {
-		cur = len(c) - 1
-	}
-	for i := cur; i > 0; i-- {
-		for _, sc := range b.selecteCharsRev {
-			if sc == c[i] {
-				if i > 0 {
-					return i + 1
-				}
-				return i
-			}
-		}
-	}
-	return 0
-}
-
 func (b *SDL_Entry) SetSelecteCharsRev(s string) {
 	b.selecteCharsRev = []byte(s)
 }
@@ -98,48 +66,57 @@ func (b *SDL_Entry) GetSelecteCharsRev() string {
 	return string(b.selecteCharsRev)
 }
 
-func (b *SDL_Entry) SetForeground(c *sdl.Color) {
-	b.SDL_WidgetBase.SetForeground(c)
-	b.Invalid(true)
-}
-
-func (b *SDL_Entry) pushHistory(val string) {
-	if len(b.history) > 0 {
-		if (b.history)[len(b.history)-1] == val {
-			return
-		}
-	}
-	b.history = append(b.history, val)
-}
-
 func (b *SDL_Entry) SetText(text string) {
 	if b.text != text {
-		b.setText(text)
+		b.screenDataLock.Lock()
+		defer b.screenDataLock.Unlock()
+		b.text = text
+		b.textLen = len(text)
+		b.ClearSelection()
+		b.Invalid(true)
 	}
 }
 
-func (b *SDL_Entry) setText(text string) {
-	b.keyPressLock.Lock()
-	defer b.keyPressLock.Unlock()
-	b.text = text
-	b.textLen = len(b.text)
-	b.ClearSelection()
-	b.Invalid(true)
+func (b *SDL_Entry) findSelecteCharsFwd() uint {
+	c := []byte(b.text)
+	cur := b.cursor
+	for i := cur; i < len(c); i++ {
+		for _, sc := range b.selecteCharsFwd {
+			if sc == c[i] {
+				if i > 0 {
+					return uint(i - 1)
+				}
+				return 0
+			}
+		}
+	}
+	return uint(len(c))
 }
 
-func (b *SDL_Entry) insertAtCursor(text string) string {
-	if b.cursor < b.textLen {
-		return fmt.Sprintf("%s%s%s", b.text[0:b.cursor], text, b.text[b.cursor:])
-	} else {
-		return fmt.Sprintf("%s%s", b.text, text)
+func (b *SDL_Entry) findSelecteCharsRev() uint {
+	c := []byte(b.text)
+	cur := b.cursor
+	if cur >= len(c) {
+		cur = len(c) - 1
 	}
+	for i := cur; i > 0; i-- {
+		for _, sc := range b.selecteCharsRev {
+			if sc == c[i] {
+				if i < len(c) {
+					return uint(i + 1)
+				}
+				return uint(i)
+			}
+		}
+	}
+	return 0
 }
 
 func (b *SDL_Entry) SetFocused(focus bool) {
+	b.screenDataLock.Lock()
+	defer b.screenDataLock.Unlock()
 	b.SDL_WidgetBase.SetFocused(focus)
-	if !focus {
-		b.ClearSelection()
-	}
+	b.ClearSelection()
 	b.Invalid(true)
 }
 
@@ -233,25 +210,19 @@ func (b *SDL_Entry) KeyPress(c int, ctrl bool, down bool) bool {
 		if oldValue != newValue && b.onChange != nil {
 			var err error
 			newValue, err = b.onChange(oldValue, newValue, onChangeType)
-			if b.CanLog() && err != nil {
-				b.Log(LOG_LEVEL_ERROR, err.Error())
-			}
 			b.SetError(err != nil)
 		}
 		if newValue != oldValue {
 			if saveHistory {
 				b.pushHistory(oldValue)
 			}
-			b.text = newValue
-			b.textLen = len(b.text)
+			b.SetText(newValue)
 			switch onChangeType {
 			case TEXT_CHANGE_INSERT:
 				b.MoveCursor(insertLen)
 			case TEXT_CHANGE_BS:
 				b.MoveCursor(-insertLen)
 			}
-			b.Invalid(true)
-			b.ClearSelection()
 			return true
 		}
 	}
@@ -262,6 +233,15 @@ func (b *SDL_Entry) SetCursor(i int) {
 	b.screenDataLock.Lock()
 	defer b.screenDataLock.Unlock()
 	b.setCursorNoLock(i)
+}
+
+func (b *SDL_Entry) pushHistory(val string) {
+	if len(b.history) > 0 {
+		if (b.history)[len(b.history)-1] == val {
+			return
+		}
+	}
+	b.history = append(b.history, val)
 }
 
 func (b *SDL_Entry) setCursorNoLock(i int) {
@@ -298,29 +278,39 @@ func (b *SDL_Entry) MoveCursor(i int) {
 	b.setCursorNoLock(b.cursor + i)
 }
 
-func (b *SDL_Entry) SetEnabled(e bool) {
-	if b.IsEnabled() != e {
-		b.SDL_WidgetBase.SetEnabled(e)
-		b.Invalid(true)
-	}
-}
-
 func (b *SDL_Entry) GetText() string {
 	return b.text
 }
 
 func (b *SDL_Entry) GetSelectedText() string {
-	return b.screenData.GetSelectedText()
+	if b.selectCharFrom < 0 || b.selectCharToo < 0 {
+		return ""
+	}
+	if b.selectCharFrom > b.selectCharToo {
+		return ""
+	}
+	var sb strings.Builder
+	for i, c := range b.text {
+		if i >= b.selectCharFrom && i <= b.selectCharToo {
+			sb.WriteRune(c)
+		}
+	}
+	return sb.String()
 }
 
-func (b *SDL_Entry) SetSelectedTextBounds(from, too int) {
-	b.screenData.SetSelectedTextBounds(from, too)
+func (b *SDL_Entry) SetSelectedTextBounds(from, too uint) error {
+	if from > too || too > uint(b.textLen) {
+		b.ClearSelection()
+		return fmt.Errorf("invalid selection from:%d, to:%d", from, too)
+	}
+	b.selectCharFrom = int(from)
+	b.selectCharToo = int(too)
+	return nil
 }
 
 func (b *SDL_Entry) ClearSelection() {
-	b.screenDataLock.Lock()
-	defer b.screenDataLock.Unlock()
-	b.screenData.SetAllSelected(false)
+	b.selectCharFrom = -1
+	b.selectCharToo = -1
 }
 
 func (b *SDL_Entry) selectAtCursor(clicks int) bool {
@@ -330,14 +320,19 @@ func (b *SDL_Entry) selectAtCursor(clicks int) bool {
 	case 2:
 		from := b.findSelecteCharsRev()
 		too := b.findSelecteCharsFwd()
-		b.SetSelectedTextBounds(from, too)
-		if b.CanLog() {
-			b.Log(1, fmt.Sprintf("Sel:%s %d %d", b.GetSelectedText(), from, too))
-		}
+		b.SetSelectedTextBounds(uint(from), uint(too))
 	case 3:
-		b.SetSelectedTextBounds(0, b.textLen-1)
+		b.SetSelectedTextBounds(0, uint(b.textLen-1))
 	}
 	return true
+}
+
+func (b *SDL_Entry) insertAtCursor(text string) string {
+	if b.cursor < b.textLen {
+		return fmt.Sprintf("%s%s%s", b.text[0:b.cursor], text, b.text[b.cursor:])
+	} else {
+		return fmt.Sprintf("%s%s", b.text, text)
+	}
 }
 
 func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
@@ -345,67 +340,74 @@ func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
 		b.keyPressLock.Lock()
 		defer b.keyPressLock.Unlock()
 
-		if md.IsDragging() {
-			if !b.dragging {
-				b.dragFrom = md.draggingToX
-				b.dragTo = md.draggingToX
-				b.dragging = true
-			} else {
-				b.dragTo = md.draggingToX
-			}
-			return true
-		} else {
-			b.dragging = false
-		}
-
 		if md.GetClickCount() > 1 {
 			return b.selectAtCursor(md.GetClickCount())
 		}
 
+		/*
+			Is currently dragging so get dragged from (start of draggings)
+			Set the flag
+		*/
+		if md.IsDragging() {
+			if !b.dragging {
+				b.dragFrom = md.GetDraggingX()
+				b.dragTo = b.dragFrom
+				b.dragging = true
+			} else {
+				b.dragTo = md.GetDraggingX()
+			}
+			return true
+		} else {
+			// If not dragging then clear flag
+			b.dragging = false
+		}
+
+		/*
+			Done dragging so work out what is to be selected
+		*/
 		if md.IsDragged() {
 			go func() {
 				b.screenDataLock.Lock()
 				defer b.screenDataLock.Unlock()
-				b.selTo = b.dragTo
-				b.selFrom = b.dragFrom
-				oldSel := b.screenData.GetSelectedText()
-				sel := false
+				selTo := b.dragTo
+				selFrom := b.dragFrom
 
-				if b.selTo < b.selFrom {
-					temp := b.selFrom
-					b.selFrom = b.selTo
-					b.selTo = temp
+				if selTo < selFrom {
+					temp := selFrom
+					selFrom = selTo
+					selTo = temp
 				}
+
 				linked := b.screenData
 				if linked == nil {
 					return
 				}
+
+				/*
+					Go through each image and check from and too are inside.
+				*/
+				sel := false
 				for linked != nil {
-					if linked.Inside(b.selFrom) {
-						b.selFrom = linked.offset
+					if linked.Inside(selFrom) && !sel {
+						// Start selecting
+						b.selectCharFrom = linked.pos
+						b.selectCharToo = linked.pos
 						sel = true
 					}
-					linked.SetSelected(sel)
-					if linked.Inside(b.selTo) {
-						b.selTo = linked.offset + linked.width
+					if linked.Inside(selTo) && sel {
+						// End selecting
+						b.selectCharToo = linked.pos
 						sel = false
 					}
 					linked = linked.next
 				}
-				b.selTo = 0
-				b.selFrom = 0
-
-				newSel := b.screenData.GetSelectedText()
-				if newSel != oldSel {
-					s, _ := b.onChange(oldSel, newSel, TEXT_CHANGE_SELECTED)
-					if s == oldSel {
-						fmt.Println("OLDSEL")
-						// To Do restore old selection
-					}
-				}
 			}()
 			return true
 		}
+
+		/*
+			Clicked on widget so work out where to set the cursor
+		*/
 		go func() {
 			b.screenDataLock.Lock()
 			defer b.screenDataLock.Unlock()
@@ -415,7 +417,7 @@ func (b *SDL_Entry) Click(md *SDL_MouseData) bool {
 			}
 			notFound := true
 			for linked != nil {
-				if linked.Inside(md.x) {
+				if linked.Inside(md.GetX()) {
 					b.setCursorNoLock(linked.pos)
 					notFound = false
 					break
@@ -460,7 +462,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			b.screenData = sd
 		}
 
-		linked := b.screenData
+		screenData := b.screenData
 		// *******************************************************
 		// Find the number of chars thet can be displayed 'cc'
 		if b.leadin >= b.textLen { // Ensure leadin is not past the end
@@ -470,8 +472,8 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			b.leadin = 0
 		}
 
-		linked.SetAllVisible(false)
-		leadIn := linked.Indexed(b.leadin)
+		screenData.SetAllVisible(false)
+		leadIn := screenData.Indexed(b.leadin)
 		if leadIn == nil {
 			return nil
 		}
@@ -509,7 +511,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			tw := disp.width
 			rect = &sdl.Rect{X: tx, Y: b.y + ty, W: tw, H: th}
 			disp.SetVisible(true)
-			if disp.IsSelected() {
+			if disp.pos >= b.selectCharFrom && disp.pos <= b.selectCharToo {
 				renderer.SetDrawColor(100, 100, 100, 25)
 				renderer.FillRect(rect)
 			}

@@ -3,7 +3,6 @@ package go_sdl_widget
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/veandco/go-sdl2/img"
@@ -190,7 +189,7 @@ func (r *sdl_Resources) GetScaledTextureListFromCachedRunesLinked(text string, c
 			return rootEnt
 		}
 		sw = float32(height) * (float32(tce.W) / float32(tce.H))
-		nextEnt = &sdl_TextureCacheEntryRune{pos: i, te: tce, offset: int32(ofs), width: int32(sw), sel: false, next: nil}
+		nextEnt = &sdl_TextureCacheEntryRune{pos: i, te: tce, offset: int32(ofs), width: int32(sw), next: nil}
 		if rootEnt == nil {
 			rootEnt = nextEnt
 			currentEnt = nextEnt
@@ -373,7 +372,6 @@ func newTextureCacheEntryForString(renderer *sdl.Renderer, text string, font *tt
 type sdl_TextureCacheEntryRune struct {
 	pos           int // Position in the string this list represents
 	offset, width int32
-	sel           bool
 	visible       bool
 	te            *SDL_TextureCacheEntry     // The texture data for the char at pos in the string this list represents
 	next          *sdl_TextureCacheEntryRune // The next in the string this list represents. Nil at the end
@@ -381,23 +379,6 @@ type sdl_TextureCacheEntryRune struct {
 
 func (er *sdl_TextureCacheEntryRune) String() string {
 	return fmt.Sprintf("TCER: pos:%d '%s' ofs:%d eidth:%d", er.pos, er.te.value, er.offset, er.width)
-}
-
-func (er *sdl_TextureCacheEntryRune) SetSelected(s bool) {
-	er.sel = s
-}
-
-func (er *sdl_TextureCacheEntryRune) IsSelected() bool {
-	return er.sel
-
-}
-
-func (er *sdl_TextureCacheEntryRune) SetAllSelected(s bool) {
-	n := er
-	for n != nil {
-		n.sel = s
-		n = n.next
-	}
 }
 
 func (er *sdl_TextureCacheEntryRune) SetVisible(s bool) {
@@ -418,29 +399,7 @@ func (er *sdl_TextureCacheEntryRune) SetAllVisible(s bool) {
 }
 
 func (er *sdl_TextureCacheEntryRune) Inside(x int32) bool {
-	return (x > er.offset) && (x < er.offset+er.width)
-}
-
-func (er *sdl_TextureCacheEntryRune) GetSelectedText() string {
-	var sb strings.Builder
-	n := er
-	for n != nil {
-		if n.sel {
-			sb.WriteString(n.te.value)
-		}
-		n = n.next
-	}
-	return sb.String()
-}
-
-func (er *sdl_TextureCacheEntryRune) SetSelectedTextBounds(from, too int) {
-	n := er
-	for n != nil {
-		if n.pos >= from && n.pos <= too {
-			n.SetSelected(true)
-		}
-		n = n.next
-	}
+	return (x >= er.offset) && (x <= er.offset+er.width)
 }
 
 func (er *sdl_TextureCacheEntryRune) Count() int {

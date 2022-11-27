@@ -242,26 +242,27 @@ func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			b.SetSize(ctwe.W, b.h)
 		}
 
-		th := float32(b.h) - (float32(b.h) / 4)
-		tw := float32(ctwe.W) * (float32(b.h) / float32(ctwe.H))
-		var tx float32
+		bh := float32(b.h)
+		th := int32(bh - (bh / 4))
+		tw := int32(float32(ctwe.W) * (bh / float32(ctwe.H)))
+		var tx int32
 
 		switch b.align {
 		case ALIGN_CENTER:
-			tx = (float32(b.w) - tw) / 2
+			tx = (b.w - tw) / 2
 		case ALIGN_LEFT:
 			tx = 10
 		case ALIGN_RIGHT:
-			tx = float32(b.x+b.w) - tw
+			tx = (b.x + b.w) - tw
 		}
-		ty := (float32(b.h) - th) / 2
+		ty := (b.h - th) / 2
 
 		if b.ShouldDrawBackground() {
 			bc := b.GetBackground()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
-		renderer.Copy(ctwe.Texture, nil, &sdl.Rect{X: b.x + int32(tx), Y: b.y + int32(ty), W: int32(tw), H: int32(th)})
+		renderer.Copy(ctwe.Texture, nil, &sdl.Rect{X: b.x + tx, Y: b.y + ty, W: tw, H: th})
 		if b.ShouldDrawBorder() {
 			bc := b.GetBorderColour()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
@@ -351,12 +352,13 @@ func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
 		// Center the text inside the buttonj
-		th := float32(b.h) - (float32(b.h) / 4)
-		tw := float32(ctwe.W) * (float32(b.h) / float32(ctwe.H))
-		tx := (float32(b.w) - tw) / 2
-		ty := (float32(b.h) - th) / 2
+		bh := float32(b.h)
+		th := int32(bh - (bh / 4))
+		tw := int32(float32(ctwe.W) * (bh / float32(ctwe.H)))
+		tx := (b.w - tw) / 2
+		ty := (b.h - th) / 2
 
-		renderer.Copy(ctwe.Texture, nil, &sdl.Rect{X: b.x + int32(tx), Y: b.y + int32(ty), W: int32(tw), H: int32(th)})
+		renderer.Copy(ctwe.Texture, nil, &sdl.Rect{X: b.x + tx, Y: b.y + ty, W: tw, H: th})
 		if b.ShouldDrawBorder() {
 			bc := b.GetBorderColour()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
