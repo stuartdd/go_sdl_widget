@@ -179,26 +179,16 @@ type SDL_Label struct {
 	text         string
 	cacheKey     string
 	cacheInvalid bool
-	textureCache *SDL_TextureCache
 	align        ALIGN_TEXT
 }
 
-var _ SDL_Widget = (*SDL_Label)(nil)             // Ensure SDL_Button 'is a' SDL_Widget
-var _ SDL_TextWidget = (*SDL_Label)(nil)         // Ensure SDL_Button 'is a' SDL_TextWidget
-var _ SDL_TextureCacheWidget = (*SDL_Label)(nil) // Ensure SDL_Button 'is a' SDL_TextureCacheWidget
+var _ SDL_Widget = (*SDL_Label)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
+var _ SDL_TextWidget = (*SDL_Label)(nil) // Ensure SDL_Button 'is a' SDL_TextWidget
 
 func NewSDLLabel(x, y, w, h, id int32, text string, align ALIGN_TEXT, style STATE_BITS) *SDL_Label {
 	but := &SDL_Label{text: text, cacheInvalid: true, align: align, cacheKey: fmt.Sprintf("label:%d:%d", id, rand.Intn(100))}
 	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return but
-}
-
-func (b *SDL_Label) SetTextureCache(tc *SDL_TextureCache) {
-	b.textureCache = tc
-}
-
-func (b *SDL_Label) GetTextureCache() *SDL_TextureCache {
-	return b.textureCache
 }
 
 func (b *SDL_Label) SetForeground(c *sdl.Color) {
@@ -283,9 +273,8 @@ func (b *SDL_Label) Destroy() {
 **/
 type SDL_Button struct {
 	SDL_WidgetBase
-	text         string
-	textureCache *SDL_TextureCache
-	onClick      func(SDL_Widget, int32, int32) bool
+	text    string
+	onClick func(SDL_Widget, int32, int32) bool
 }
 
 var _ SDL_Widget = (*SDL_Button)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
@@ -307,14 +296,6 @@ func (b *SDL_Button) SetText(text string) {
 
 func (b *SDL_Button) GetText() string {
 	return b.text
-}
-
-func (b *SDL_Button) SetTextureCache(tc *SDL_TextureCache) {
-	b.textureCache = tc
-}
-
-func (b *SDL_Button) GetTextureCache() *SDL_TextureCache {
-	return b.textureCache
 }
 
 func (b *SDL_Button) Click(md *SDL_MouseData) bool {
@@ -376,11 +357,10 @@ func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 **/
 type SDL_Image struct {
 	SDL_WidgetBase
-	textureName  string
-	frame        int32
-	frameCount   int32
-	textureCache *SDL_TextureCache
-	onClick      func(SDL_Widget, int32, int32) bool
+	textureName string
+	frame       int32
+	frameCount  int32
+	onClick     func(SDL_Widget, int32, int32) bool
 }
 
 var _ SDL_Widget = (*SDL_Image)(nil)      // Ensure SDL_Image 'is a' SDL_Widget
@@ -413,14 +393,6 @@ func (b *SDL_Image) NextFrame() int32 {
 
 func (b *SDL_Image) GetFrameCount() int32 {
 	return b.frameCount
-}
-
-func (b *SDL_Image) SetTextureCache(tc *SDL_TextureCache) {
-	b.textureCache = tc
-}
-
-func (b *SDL_Image) GetTextureCache() *SDL_TextureCache {
-	return b.textureCache
 }
 
 func (b *SDL_Image) Click(md *SDL_MouseData) bool {
@@ -505,7 +477,7 @@ func (b *SDL_Separator) Click(md *SDL_MouseData) bool {
 func (b *SDL_Separator) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsEnabled() {
 		if b.ShouldDrawBackground() {
-			bc := b.GetBorderColour()
+			bc := b.GetBackground()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
