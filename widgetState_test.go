@@ -22,27 +22,27 @@ func TestWidgetCharCache(t *testing.T) {
 
 func TestWidgetStateColourIndex(t *testing.T) {
 	w := NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_AND_BG, 0, nil)
-	assertInt(t, "Initial 1", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
+	assertStateColour(t, "Initial 1", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
 	w.SetEnabled(false)
-	assertInt(t, "Disabled", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
+	assertStateColour(t, "Disabled", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
 	w.SetFocused(true)
-	assertInt(t, "Disabled + Focused", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
+	assertStateColour(t, "Disabled + Focused", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
 	w.SetError(true)
-	assertInt(t, "Disabled + Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
+	assertStateColour(t, "Disabled + Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
 
 	w = NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_AND_BG, 0, nil)
-	assertInt(t, "Initial 2", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
+	assertStateColour(t, "Initial 2", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
 	w.SetFocused(true)
-	assertInt(t, "Focused", getStateColourIndex(w.state), WIDGET_COLOUR_FOCUS)
+	assertStateColour(t, "Focused", getStateColourIndex(w.state), WIDGET_COLOUR_FOCUS)
 	w.SetError(true)
-	assertInt(t, "Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
+	assertStateColour(t, "Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
 
 	w = NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_AND_BG, 0, nil)
-	assertInt(t, "Initial 3", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
+	assertStateColour(t, "Initial 3", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
 	w.SetError(true)
-	assertInt(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
+	assertStateColour(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
 	w.SetFocused(true)
-	assertInt(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
+	assertStateColour(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
 
 }
 
@@ -130,6 +130,7 @@ func assertStateBools(t *testing.T, message string, w SDL_Widget, ena, foc, cli,
 	assertBool(t, message, "IsClicked", w.IsClicked(), cli)
 	assertBool(t, message, "IsError", w.IsError(), err)
 	assertBool(t, message, "IsVisible", w.IsVisible(), vis)
+
 }
 
 func assertBool(t *testing.T, message1, message2 string, val, expected bool) {
@@ -138,6 +139,11 @@ func assertBool(t *testing.T, message1, message2 string, val, expected bool) {
 	}
 }
 func assertInt(t *testing.T, message1 string, val, expected int) {
+	if val != expected {
+		t.Errorf("%s: Actual %d Expected %d", message1, val, expected)
+	}
+}
+func assertStateColour(t *testing.T, message1 string, val, expected STATE_COLOUR) {
 	if val != expected {
 		t.Errorf("%s: Actual %d Expected %d", message1, val, expected)
 	}

@@ -94,9 +94,6 @@ func (b *SDL_Shape) Click(md *SDL_MouseData) bool {
 	return false
 }
 
-func (b *SDL_Shape) Destroy() {
-}
-
 func (s *SDL_Shape) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if s.IsVisible() {
 		s.GetRect() // Make sure we update the Out Arrays is the state of the shape was changed
@@ -182,20 +179,13 @@ type SDL_Label struct {
 	align        ALIGN_TEXT
 }
 
-var _ SDL_Widget = (*SDL_Label)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 var _ SDL_TextWidget = (*SDL_Label)(nil) // Ensure SDL_Button 'is a' SDL_TextWidget
+var _ SDL_Widget = (*SDL_Label)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLLabel(x, y, w, h, id int32, text string, align ALIGN_TEXT, style STATE_BITS) *SDL_Label {
 	but := &SDL_Label{text: text, cacheInvalid: true, align: align, cacheKey: fmt.Sprintf("label:%d:%d", id, rand.Intn(100))}
 	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
 	return but
-}
-
-func (b *SDL_Label) SetForeground(c *sdl.Color) {
-	if b.foreground != c {
-		b.SDL_WidgetBase.SetForeground(c)
-		b.cacheInvalid = true
-	}
 }
 
 func (b *SDL_Label) SetText(text string) {
@@ -205,19 +195,8 @@ func (b *SDL_Label) SetText(text string) {
 	}
 }
 
-func (b *SDL_Label) SetEnabled(e bool) {
-	if b.IsEnabled() != e {
-		b.cacheInvalid = true
-		b.SDL_WidgetBase.SetEnabled(e)
-	}
-}
-
 func (b *SDL_Label) GetText() string {
 	return b.text
-}
-
-func (b *SDL_Label) Click(md *SDL_MouseData) bool {
-	return false
 }
 
 func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
@@ -262,9 +241,6 @@ func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	}
 	return nil
 }
-func (b *SDL_Label) Destroy() {
-	// Image cache takes care of all images!
-}
 
 /****************************************************************************************
 * SDL_Button code
@@ -277,8 +253,8 @@ type SDL_Button struct {
 	onClick func(SDL_Widget, int32, int32) bool
 }
 
-var _ SDL_Widget = (*SDL_Button)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 var _ SDL_TextWidget = (*SDL_Button)(nil) // Ensure SDL_Button 'is a' SDL_TextWidget
+var _ SDL_Widget = (*SDL_Button)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLButton(x, y, w, h, id int32, text string, style STATE_BITS, deBounce int, onClick func(SDL_Widget, int32, int32) bool) *SDL_Button {
 	but := &SDL_Button{text: text, onClick: onClick}
@@ -312,10 +288,6 @@ func (b *SDL_Button) Click(md *SDL_MouseData) bool {
 		return b.onClick(b, md.x, md.y)
 	}
 	return false
-}
-
-func (b *SDL_Button) Destroy() {
-
 }
 
 func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
@@ -363,8 +335,8 @@ type SDL_Image struct {
 	onClick     func(SDL_Widget, int32, int32) bool
 }
 
-var _ SDL_Widget = (*SDL_Image)(nil)      // Ensure SDL_Image 'is a' SDL_Widget
 var _ SDL_ImageWidget = (*SDL_Image)(nil) // Ensure SDL_Image 'is a' SDL_ImageWidget
+var _ SDL_Widget = (*SDL_Image)(nil)      // Ensure SDL_Image 'is a' SDL_Widget
 
 func NewSDLImage(x, y, w, h, id int32, textureName string, frame, frameCount int32, style STATE_BITS, deBounce int, onClick func(SDL_Widget, int32, int32) bool) *SDL_Image {
 	but := &SDL_Image{textureName: textureName, frame: frame, frameCount: frameCount, onClick: onClick}
@@ -449,10 +421,6 @@ func (b *SDL_Image) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	return nil
 }
 
-func (b *SDL_Image) Destroy() {
-	// Image cache takes care of all images!
-}
-
 /****************************************************************************************
 * SDL_Image code
 * Implements SDL_Widget cos it is one!
@@ -470,10 +438,6 @@ func NewSDLSeparator(x, y, w, h, id int32, style STATE_BITS) *SDL_Separator {
 	return but
 }
 
-func (b *SDL_Separator) Click(md *SDL_MouseData) bool {
-	return false
-}
-
 func (b *SDL_Separator) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsEnabled() {
 		if b.ShouldDrawBackground() {
@@ -489,8 +453,4 @@ func (b *SDL_Separator) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 		}
 	}
 	return nil
-}
-
-func (b *SDL_Separator) Destroy() {
-	// Image cache takes care of all images!
 }

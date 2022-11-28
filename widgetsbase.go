@@ -14,6 +14,8 @@ type KBD_KEY_MODE int
 type TEXT_CHANGE_TYPE int
 type STATE_BITS uint16
 type LOG_LEVEL int
+type STATE_COLOUR int
+type STYLE_COLOUR int
 
 const (
 	LOG_LEVEL_ERROR LOG_LEVEL = iota
@@ -49,90 +51,64 @@ const (
 	WIDGET_STATE_ENA_BITS      STATE_BITS = 0b0000000000001111 // Clear style AND mask. Retains state.
 	WIDGET_STATE_ENA_SET       STATE_BITS = 0b0000000100110000 // Enabled visible and not-clicked
 
-	WIDGET_COLOR_FG     int = 0 // Section indexes
-	WIDGET_COLOR_BG     int = 1
-	WIDGET_COLOR_BORDER int = 2
-	WIDGET_COLOR_ENTRY  int = 3
-	WIDGET_COLOR_MAX    int = 4
+	WIDGET_COLOR_FG     STYLE_COLOUR = 0 // Section indexes
+	WIDGET_COLOR_BG     STYLE_COLOUR = 1
+	WIDGET_COLOR_BORDER STYLE_COLOUR = 2
+	WIDGET_COLOR_ENTRY  STYLE_COLOUR = 3
+	WIDGET_COLOR_MAX    STYLE_COLOUR = 4
 
-	WIDGET_COLOUR_ENABLED = 0
-	WIDGET_COLOUR_DISABLE = 1
-	WIDGET_COLOUR_FOCUS   = 2
-	WIDGET_COLOUR_ERROR   = 3
+	WIDGET_COLOUR_ENABLED STATE_COLOUR = 0
+	WIDGET_COLOUR_DISABLE STATE_COLOUR = 1
+	WIDGET_COLOUR_FOCUS   STATE_COLOUR = 2
+	WIDGET_COLOUR_ERROR   STATE_COLOUR = 3
 
 	DEG_TO_RAD float64 = (math.Pi / 180)
 )
 
 var TEXTURE_CACHE_TEXT_PREF = "TxCaPr987"
 
-type SDL_WidgetInList interface {
-	SetWidgetId(int32)  // Base
-	GetWidgetId() int32 // Base
-	SetVisible(bool)    // Base
-	IsVisible() bool    // Base
-	SetEnabled(bool)    // Base
-	IsEnabled() bool    // Base
-	Draw(*sdl.Renderer, *ttf.Font) error
-	Inside(int32, int32) bool // Base
-	Click(*SDL_MouseData) bool
-	Scale(float32)
-	GetBackground() *sdl.Color     // Base
-	GetBorderColour() *sdl.Color   // Base
-	SetPosition(int32, int32) bool // Base
-	GetPosition() (int32, int32)   // Base
-	SetSize(int32, int32) bool     // Base
-	GetSize() (int32, int32)       // Base
-	Destroy()                      // Base
-}
-
 type SDL_Widget interface {
 	Draw(*sdl.Renderer, *ttf.Font) error
 	Scale(float32)
 	Click(*SDL_MouseData) bool
+	KeyPress(c int, ctrl, down bool) bool
 	Inside(int32, int32) bool      // Base
 	GetRect() *sdl.Rect            // Base
 	SetWidgetId(int32)             // Base
 	GetWidgetId() int32            // Base
 	SetVisible(bool)               // Base
 	IsVisible() bool               // Base
-	SetEnabled(bool)               // Base
-	IsEnabled() bool               // Base
-	SetError(bool)                 // Base
-	IsError() bool                 // Base
-	SetFocused(bool)               // Base
-	IsFocused() bool               // Base
 	SetClicked(bool)               // Base
 	IsClicked() bool               // Base
+	SetEnabled(bool)               // Base
+	IsEnabled() bool               // Base
+	SetFocused(bool)               // Base
+	IsFocused() bool               // Base
+	SetError(bool)                 // Base
+	IsError() bool                 // Base
 	SetPosition(int32, int32) bool // Base
 	GetPosition() (int32, int32)   // Base
 	SetSize(int32, int32) bool     // Base
 	GetSize() (int32, int32)       // Base
-
-	GetForeground() *sdl.Color   // Base
-	GetBackground() *sdl.Color   // Base
-	GetBorderColour() *sdl.Color // Base
-	GetEntryColour() *sdl.Color  // Base
-
-	SetForeground(*sdl.Color)   // Base
-	SetBackground(*sdl.Color)   // Base
-	SetBorderColour(*sdl.Color) // Base
-	SetEntryColour(*sdl.Color)  // Base
-
-	SetDrawBackground(bool)
-	ShouldDrawBackground() bool
-	SetDrawBorder(bool)
-	ShouldDrawBorder() bool
-
-	Destroy() // Base
-
+	GetForeground() *sdl.Color     // Base
+	GetBackground() *sdl.Color     // Base
+	GetBorderColour() *sdl.Color   // Base
+	SetForeground(*sdl.Color)      // Base
+	SetBackground(*sdl.Color)      // Base
+	SetBorderColour(*sdl.Color)    // Base
+	SetDrawBackground(bool)        // Base
+	GetFocusColour() *sdl.Color    // Base
+	SetFocusColour(*sdl.Color)     // Base
+	ShouldDrawBackground() bool    // Base
+	SetDrawBorder(bool)            // Base
+	ShouldDrawBorder() bool        // Base
+	Destroy()                      // Base
 	SetLog(func(LOG_LEVEL, string))
 	Log(LOG_LEVEL, string)
 	CanLog() bool
 }
 
 type SDL_CanFocus interface {
-	SetFocused(bool) // Base
-	IsFocused() bool // Base
 	KeyPress(int, bool, bool) bool
 	ClearSelection()
 	GetSelectedText() string
@@ -141,9 +117,6 @@ type SDL_CanFocus interface {
 type SDL_TextWidget interface {
 	SetText(text string)
 	GetText() string
-	GetWidgetId() int32
-	IsEnabled() bool
-	GetForeground() *sdl.Color
 }
 
 type SDL_ImageWidget interface {
@@ -154,7 +127,7 @@ type SDL_ImageWidget interface {
 }
 
 type SDL_LinkedWidget struct {
-	widget *SDL_WidgetInList
+	widget SDL_Widget
 	next   *SDL_LinkedWidget
 }
 
@@ -165,7 +138,7 @@ type SDL_WidgetBase struct {
 	background   *sdl.Color
 	foreground   *sdl.Color
 	borderColour *sdl.Color
-	entryColour  *sdl.Color
+	focusColour  *sdl.Color
 	state        STATE_BITS
 	log          func(LOG_LEVEL, string)
 }
@@ -185,9 +158,19 @@ func initBase(x, y, w, h, widgetId int32, deBounce int, style STATE_BITS) SDL_Wi
 		background:   nil,
 		foreground:   nil,
 		borderColour: nil,
-		entryColour:  nil,
+		focusColour:  nil,
 		state:        style | WIDGET_STATE_STA_BITS, // Clear state bits and set enabled, visible and notpressed. Leave style unchanged
 	}
+}
+func (b *SDL_WidgetBase) Click(md *SDL_MouseData) bool {
+	return false
+}
+
+func (b *SDL_WidgetBase) KeyPress(c int, ctrl bool, down bool) bool {
+	return false
+}
+
+func (b *SDL_WidgetBase) Destroy() {
 }
 
 func (b *SDL_WidgetBase) GetWidgetId() int32 {
@@ -306,7 +289,10 @@ func (b *SDL_WidgetBase) SetFocused(v bool) {
 }
 
 func (b *SDL_WidgetBase) IsFocused() bool {
-	return (b.state & WIDGET_STATE_NOT_FOCUSED) == 0
+	if b.IsEnabled() {
+		return (b.state & WIDGET_STATE_NOT_FOCUSED) == 0
+	}
+	return false
 }
 
 func (b *SDL_WidgetBase) SetEnabled(e bool) {
@@ -341,8 +327,8 @@ func (b *SDL_WidgetBase) SetBorderColour(c *sdl.Color) {
 	b.borderColour = c
 }
 
-func (b *SDL_WidgetBase) SetEntryColour(c *sdl.Color) {
-	b.entryColour = c
+func (b *SDL_WidgetBase) SetFocusColour(c *sdl.Color) {
+	b.focusColour = c
 }
 
 func (b *SDL_WidgetBase) SetDrawBackground(e bool) {
@@ -390,9 +376,9 @@ func (b *SDL_WidgetBase) GetBorderColour() *sdl.Color {
 	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_BORDER)
 }
 
-func (b *SDL_WidgetBase) GetEntryColour() *sdl.Color {
-	if b.entryColour != nil {
-		return b.entryColour
+func (b *SDL_WidgetBase) GetFocusColour() *sdl.Color {
+	if b.focusColour != nil {
+		return b.focusColour
 	}
 	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_ENTRY)
 }
@@ -402,356 +388,6 @@ func (b *SDL_WidgetBase) Inside(x, y int32) bool {
 		return isInsideRect(x, y, b.GetRect())
 	}
 	return false
-}
-
-/****************************************************************************************
-* Container for SDL_Widgets. A list of lists
-**/
-type SDL_WidgetGroup struct {
-	wigetLists []*SDL_WidgetSubGroup
-}
-
-func NewWidgetGroup(font *ttf.Font) *SDL_WidgetGroup {
-	return &SDL_WidgetGroup{wigetLists: make([]*SDL_WidgetSubGroup, 0)}
-}
-
-func (wg *SDL_WidgetGroup) NewWidgetSubGroup(font *ttf.Font, id int32) *SDL_WidgetSubGroup {
-	if font == nil {
-		font = GetResourceInstance().GetFont()
-	}
-	sg := &SDL_WidgetSubGroup{font: font, id: id, base: nil, count: 0}
-	wg.wigetLists = append(wg.wigetLists, sg)
-	return sg
-}
-
-func (wg *SDL_WidgetGroup) AllWidgets() []SDL_WidgetInList {
-	l := make([]SDL_WidgetInList, 0)
-	for _, wList := range wg.wigetLists {
-		l = append(l, wList.ListWidgets()...)
-	}
-	return l
-}
-
-func (wg *SDL_WidgetGroup) SetFocused(id int32) {
-	for _, wList := range wg.wigetLists {
-		wList.SetFocused(id)
-	}
-}
-
-func (wg *SDL_WidgetGroup) ClearFocus() {
-	for _, wList := range wg.wigetLists {
-		wList.ClearFocus()
-	}
-}
-
-func (wg *SDL_WidgetGroup) ClearSelection() {
-	for _, wList := range wg.wigetLists {
-		wList.ClearSelection()
-	}
-}
-
-func (wg *SDL_WidgetGroup) GetFocused() SDL_CanFocus {
-	for _, wList := range wg.wigetLists {
-		f := wList.GetFocused()
-		if f != nil {
-			return f
-		}
-	}
-	return nil
-}
-
-func (wl *SDL_WidgetGroup) GetWidgetSubGroup(id int32) *SDL_WidgetSubGroup {
-	for _, w := range wl.wigetLists {
-		if (*w).GetId() == id {
-			return w
-		}
-	}
-	return nil
-}
-
-func (wl *SDL_WidgetGroup) GetWidget(id int32) SDL_WidgetInList {
-	for _, w := range wl.wigetLists {
-		wi := w.GetWidget(id)
-		if wi != nil {
-			return wi
-		}
-	}
-	return nil
-}
-
-func (wg *SDL_WidgetGroup) AllSubGroups() []*SDL_WidgetSubGroup {
-	l := make([]*SDL_WidgetSubGroup, 0)
-	l = append(l, wg.wigetLists...)
-	return l
-}
-
-func (wg *SDL_WidgetGroup) KeyPress(c int, ctrl, down bool) bool {
-	for _, wList := range wg.wigetLists {
-		if wList.KeyPress(c, ctrl, down) {
-			return true
-		}
-	}
-	return false
-}
-
-func (wg *SDL_WidgetGroup) Scale(s float32) {
-	for _, w := range wg.wigetLists {
-		w.Scale(s)
-	}
-}
-
-func (wg *SDL_WidgetGroup) NextFrame() {
-	for _, w := range wg.wigetLists {
-		w.NextFrame()
-	}
-}
-
-func (wg *SDL_WidgetGroup) Destroy() {
-	for _, w := range wg.wigetLists {
-		w.Destroy()
-	}
-	GetResourceInstance().GetTextureCache().Destroy()
-}
-
-func (wg *SDL_WidgetGroup) Draw(renderer *sdl.Renderer) {
-	for _, w := range wg.wigetLists {
-		w.Draw(renderer)
-	}
-}
-
-func (wg *SDL_WidgetGroup) Inside(x, y int32) SDL_WidgetInList {
-	for _, wl := range wg.wigetLists {
-		w := wl.Inside(x, y)
-		if w != nil {
-			return w
-		}
-	}
-	return nil
-}
-
-/****************************************************************************************
-* Container for SDL_Widget instances.
-**/
-type SDL_WidgetSubGroup struct {
-	id    int32
-	base  *SDL_LinkedWidget
-	count int
-	font  *ttf.Font
-}
-
-func (wl *SDL_WidgetSubGroup) GetId() int32 {
-	return wl.id
-}
-
-func (wl *SDL_WidgetSubGroup) Add(widget SDL_WidgetInList) {
-	if wl.base == nil {
-		wl.base = &SDL_LinkedWidget{widget: &widget, next: nil}
-		wl.count = 1
-	} else {
-		c := 1
-		w := wl.base
-		for w != nil {
-			c++
-			if w.next == nil {
-				w.next = &SDL_LinkedWidget{widget: &widget, next: nil}
-				break
-			}
-			w = w.next
-		}
-		wl.count = c
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) Inside(x, y int32) SDL_WidgetInList {
-	w := wl.base
-	for w != nil {
-		if (*w.widget).Inside(x, y) {
-			return (*w.widget)
-		}
-		w = w.next
-	}
-	return nil
-}
-
-func (wl *SDL_WidgetSubGroup) ListWidgets() []SDL_WidgetInList {
-	list := make([]SDL_WidgetInList, wl.count)
-	i := 0
-	w := wl.base
-	for w != nil {
-		list[i] = *w.widget
-		w = w.next
-		i++
-	}
-
-	return list
-}
-
-func (wl *SDL_WidgetSubGroup) GetWidget(id int32) SDL_WidgetInList {
-	w := wl.base
-	for w != nil {
-		if (*w.widget).GetWidgetId() == id {
-			return *w.widget
-		}
-		w = w.next
-	}
-	return nil
-}
-
-func (wl *SDL_WidgetSubGroup) SetFocused(id int32) {
-	w := wl.base
-	for w != nil {
-		f, ok := (*w.widget).(SDL_CanFocus)
-		if ok {
-			f.SetFocused((*w.widget).GetWidgetId() == id)
-		}
-		w = w.next
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) ClearFocus() {
-	w := wl.base
-	for w != nil {
-		f, ok := (*w.widget).(SDL_CanFocus)
-		if ok {
-			f.SetFocused(false)
-		}
-		w = w.next
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) ClearSelection() {
-	w := wl.base
-	for w != nil {
-		f, ok := (*w.widget).(SDL_CanFocus)
-		if ok {
-			f.ClearSelection()
-		}
-		w = w.next
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) NextFrame() {
-	w := wl.base
-	for w != nil {
-		f, ok := (*w.widget).(SDL_ImageWidget)
-		if ok {
-			f.NextFrame()
-		}
-		w = w.next
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) GetFocused() SDL_CanFocus {
-	w := wl.base
-	for w != nil {
-		f, ok := (*w.widget).(SDL_CanFocus)
-		if ok {
-			if f.IsFocused() {
-				return f
-			}
-		}
-		w = w.next
-	}
-	return nil
-}
-
-func (wl *SDL_WidgetSubGroup) KeyPress(c int, ctrl, down bool) bool {
-	w := wl.base
-	for w != nil {
-		f, ok := (*w.widget).(SDL_CanFocus)
-		if ok {
-			if f.IsFocused() {
-				if f.KeyPress(c, ctrl, down) {
-					return true
-				}
-			}
-		}
-		w = w.next
-	}
-	return false
-}
-
-func (wl *SDL_WidgetSubGroup) ArrangeLR(xx, yy, padding int32) (int32, int32) {
-	x := xx
-	y := yy
-	var width int32
-	w := wl.base
-	for w != nil {
-		ww := *w.widget
-		if ww.IsVisible() {
-			ww.SetPosition(x, y)
-			width, _ = ww.GetSize()
-			x = x + width + padding
-		}
-		w = w.next
-	}
-	return x, y
-}
-
-func (wl *SDL_WidgetSubGroup) ArrangeRL(xx, yy, padding int32) (int32, int32) {
-	x := xx
-	y := yy
-	var width int32
-
-	w := wl.base
-	for w != nil {
-		ww := *w.widget
-		if ww.IsVisible() {
-			width, _ = ww.GetSize()
-			ww.SetPosition(x-width, y)
-			x = (x - width) - padding
-		}
-		w = w.next
-	}
-	return x, y
-}
-
-func (wl *SDL_WidgetSubGroup) SetEnable(e bool) {
-	w := wl.base
-	for w != nil {
-		(*w.widget).SetEnabled(e)
-		w = w.next
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) SetVisible(e bool) {
-	w := wl.base
-	for w != nil {
-		(*w.widget).SetVisible(e)
-		w = w.next
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) Draw(renderer *sdl.Renderer) {
-	w := wl.base
-	for w != nil {
-		(*w.widget).Draw(renderer, wl.font)
-		w = w.next
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) SetFont(font *ttf.Font) {
-	wl.font = font
-}
-
-func (wl *SDL_WidgetSubGroup) GetFont() *ttf.Font {
-	return wl.font
-}
-
-func (wl *SDL_WidgetSubGroup) Scale(s float32) {
-	w := wl.base
-	for w != nil {
-		(*w.widget).Scale(s)
-		w = w.next
-	}
-}
-
-func (wl *SDL_WidgetSubGroup) Destroy() {
-	w := wl.base
-	for w != nil {
-		(*w.widget).Destroy()
-		w = w.next
-	}
 }
 
 /****************************************************************************************
@@ -904,7 +540,7 @@ func isInsideRect(x, y int32, r *sdl.Rect) bool {
 	return true
 }
 
-func getStateColourIndex(state STATE_BITS) int {
+func getStateColourIndex(state STATE_BITS) STATE_COLOUR {
 	if state&WIDGET_STATE_ENA_SET == WIDGET_STATE_ENA_SET {
 		if state&WIDGET_STATE_NOT_ERROR == 0 {
 			return WIDGET_COLOUR_ERROR

@@ -118,7 +118,7 @@ func (r *sdl_Resources) GetTextureCache() *SDL_TextureCache {
 	return r.textureCache
 }
 
-func (r *sdl_Resources) GetColour(stateIndex int, colorIndex int) *sdl.Color {
+func (r *sdl_Resources) GetColour(stateIndex STATE_COLOUR, colorIndex STYLE_COLOUR) *sdl.Color {
 	return r.colours[stateIndex][colorIndex]
 }
 
