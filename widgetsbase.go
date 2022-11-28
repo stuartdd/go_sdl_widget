@@ -424,8 +424,8 @@ func (wg *SDL_WidgetGroup) NewWidgetSubGroup(font *ttf.Font, id int32) *SDL_Widg
 	return sg
 }
 
-func (wg *SDL_WidgetGroup) AllWidgets() []*SDL_WidgetInList {
-	l := make([]*SDL_WidgetInList, 0)
+func (wg *SDL_WidgetGroup) AllWidgets() []SDL_WidgetInList {
+	l := make([]SDL_WidgetInList, 0)
 	for _, wList := range wg.wigetLists {
 		l = append(l, wList.ListWidgets()...)
 	}
@@ -469,7 +469,7 @@ func (wl *SDL_WidgetGroup) GetWidgetSubGroup(id int32) *SDL_WidgetSubGroup {
 	return nil
 }
 
-func (wl *SDL_WidgetGroup) GetWidget(id int32) *SDL_WidgetInList {
+func (wl *SDL_WidgetGroup) GetWidget(id int32) SDL_WidgetInList {
 	for _, w := range wl.wigetLists {
 		wi := w.GetWidget(id)
 		if wi != nil {
@@ -573,12 +573,12 @@ func (wl *SDL_WidgetSubGroup) Inside(x, y int32) SDL_WidgetInList {
 	return nil
 }
 
-func (wl *SDL_WidgetSubGroup) ListWidgets() []*SDL_WidgetInList {
-	list := make([]*SDL_WidgetInList, wl.count)
+func (wl *SDL_WidgetSubGroup) ListWidgets() []SDL_WidgetInList {
+	list := make([]SDL_WidgetInList, wl.count)
 	i := 0
 	w := wl.base
 	for w != nil {
-		list[i] = w.widget
+		list[i] = *w.widget
 		w = w.next
 		i++
 	}
@@ -586,11 +586,11 @@ func (wl *SDL_WidgetSubGroup) ListWidgets() []*SDL_WidgetInList {
 	return list
 }
 
-func (wl *SDL_WidgetSubGroup) GetWidget(id int32) *SDL_WidgetInList {
+func (wl *SDL_WidgetSubGroup) GetWidget(id int32) SDL_WidgetInList {
 	w := wl.base
 	for w != nil {
 		if (*w.widget).GetWidgetId() == id {
-			return w.widget
+			return *w.widget
 		}
 		w = w.next
 	}
