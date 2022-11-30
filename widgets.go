@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"time"
 
 	"github.com/veandco/go-sdl2/gfx"
 	"github.com/veandco/go-sdl2/sdl"
@@ -22,18 +21,17 @@ type SDL_Shape struct {
 	vyIn      []int16
 	vxOut     []int16
 	vyOut     []int16
-	onClick   func(SDL_Widget, int32, int32) bool
 }
 
 var _ SDL_Widget = (*SDL_Shape)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
-func NewSDLShape(x, y, w, h, id int32, style STATE_BITS, onClick func(SDL_Widget, int32, int32) bool) *SDL_Shape {
-	shape := &SDL_Shape{vxIn: make([]int16, 0), vyIn: make([]int16, 0), validRect: nil, onClick: onClick}
-	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
+func NewSDLShape(x, y, w, h, id int32, style STATE_BITS, onClick func(int32, int32, int32) bool) *SDL_Shape {
+	shape := &SDL_Shape{vxIn: make([]int16, 0), vyIn: make([]int16, 0), validRect: nil}
+	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, false, style, onClick)
 	return shape
 }
 
-func NewSDLShapeArrowRight(x, y, w, h, id int32, style STATE_BITS, onClick func(SDL_Widget, int32, int32) bool) *SDL_Shape {
+func NewSDLShapeArrowRight(x, y, w, h, id int32, style STATE_BITS, onClick func(int32, int32, int32) bool) *SDL_Shape {
 	sh := NewSDLShape(x, y, w, h, id, style, onClick)
 	var halfH int32 = h / 2
 	var qtr1H int32 = h / 4
@@ -78,20 +76,6 @@ func (s *SDL_Shape) Add(x, y int32) {
 	s.vxIn = append(s.vxIn, int16(x))
 	s.vyIn = append(s.vyIn, int16(y))
 	s.validRect = nil
-}
-
-func (b *SDL_Shape) Click(md *SDL_MouseData) bool {
-	if b.IsEnabled() && b.onClick != nil {
-		if b.deBounce > 0 {
-			b.SetClicked(true)
-			defer func() {
-				time.Sleep(time.Millisecond * time.Duration(b.deBounce))
-				b.SetClicked(false)
-			}()
-		}
-		return b.onClick(b, md.x, md.y)
-	}
-	return false
 }
 
 func (s *SDL_Shape) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
@@ -173,24 +157,22 @@ func (s *SDL_Shape) GetRect() *sdl.Rect {
 **/
 type SDL_Label struct {
 	SDL_WidgetBase
-	text         string
-	cacheKey     string
-	cacheInvalid bool
-	align        ALIGN_TEXT
+	text     string
+	cacheKey string
+	align    ALIGN_TEXT
 }
 
 var _ SDL_TextWidget = (*SDL_Label)(nil) // Ensure SDL_Button 'is a' SDL_TextWidget
 var _ SDL_Widget = (*SDL_Label)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLLabel(x, y, w, h, id int32, text string, align ALIGN_TEXT, style STATE_BITS) *SDL_Label {
-	but := &SDL_Label{text: text, cacheInvalid: true, align: align, cacheKey: fmt.Sprintf("label:%d:%d", id, rand.Intn(100))}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
+	but := &SDL_Label{text: text, align: align, cacheKey: fmt.Sprintf("label:%d:%d", id, rand.Intn(100))}
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, false, style, nil)
 	return but
 }
 
 func (b *SDL_Label) SetText(text string) {
 	if b.text != text {
-		b.cacheInvalid = true
 		b.text = text
 	}
 }
@@ -256,14 +238,10 @@ type SDL_Button struct {
 var _ SDL_TextWidget = (*SDL_Button)(nil) // Ensure SDL_Button 'is a' SDL_TextWidget
 var _ SDL_Widget = (*SDL_Button)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 
-func NewSDLButton(x, y, w, h, id int32, text string, style STATE_BITS, deBounce int, onClick func(SDL_Widget, int32, int32) bool) *SDL_Button {
-	but := &SDL_Button{text: text, onClick: onClick}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, style)
+func NewSDLButton(x, y, w, h, id int32, text string, style STATE_BITS, deBounce int, onClick func(int32, int32, int32) bool) *SDL_Button {
+	but := &SDL_Button{text: text}
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, false, style, onClick)
 	return but
-}
-
-func (b *SDL_Button) SetOnClick(f func(SDL_Widget, int32, int32) bool) {
-	b.onClick = f
 }
 
 func (b *SDL_Button) SetText(text string) {
@@ -272,22 +250,6 @@ func (b *SDL_Button) SetText(text string) {
 
 func (b *SDL_Button) GetText() string {
 	return b.text
-}
-
-func (b *SDL_Button) Click(md *SDL_MouseData) bool {
-	if b.IsEnabled() && b.onClick != nil {
-		if b.deBounce > 0 {
-			b.SetClicked(true)
-			fmt.Println("Clicked")
-			defer func() {
-				time.Sleep(time.Millisecond * time.Duration(b.deBounce))
-				b.SetClicked(false)
-				fmt.Println("un-Clicked")
-			}()
-		}
-		return b.onClick(b, md.x, md.y)
-	}
-	return false
 }
 
 func (b *SDL_Button) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
@@ -332,15 +294,14 @@ type SDL_Image struct {
 	textureName string
 	frame       int32
 	frameCount  int32
-	onClick     func(SDL_Widget, int32, int32) bool
 }
 
 var _ SDL_ImageWidget = (*SDL_Image)(nil) // Ensure SDL_Image 'is a' SDL_ImageWidget
 var _ SDL_Widget = (*SDL_Image)(nil)      // Ensure SDL_Image 'is a' SDL_Widget
 
-func NewSDLImage(x, y, w, h, id int32, textureName string, frame, frameCount int32, style STATE_BITS, deBounce int, onClick func(SDL_Widget, int32, int32) bool) *SDL_Image {
-	but := &SDL_Image{textureName: textureName, frame: frame, frameCount: frameCount, onClick: onClick}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, style)
+func NewSDLImage(x, y, w, h, id int32, textureName string, frame, frameCount int32, style STATE_BITS, deBounce int, onClick func(int32, int32, int32) bool) *SDL_Image {
+	but := &SDL_Image{textureName: textureName, frame: frame, frameCount: frameCount}
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, false, style, onClick)
 	return but
 }
 
@@ -365,20 +326,6 @@ func (b *SDL_Image) NextFrame() int32 {
 
 func (b *SDL_Image) GetFrameCount() int32 {
 	return b.frameCount
-}
-
-func (b *SDL_Image) Click(md *SDL_MouseData) bool {
-	if b.IsEnabled() && b.onClick != nil {
-		if b.deBounce > 0 {
-			b.SetClicked(true)
-			defer func() {
-				time.Sleep(time.Millisecond * time.Duration(b.deBounce))
-				b.SetClicked(false)
-			}()
-		}
-		return b.onClick(b, md.x, md.y)
-	}
-	return false
 }
 
 func (b *SDL_Image) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
@@ -434,7 +381,7 @@ var _ SDL_Widget = (*SDL_Separator)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLSeparator(x, y, w, h, id int32, style STATE_BITS) *SDL_Separator {
 	but := &SDL_Separator{}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, false, style, nil)
 	return but
 }
 

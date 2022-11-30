@@ -126,7 +126,9 @@ func TestWidgetButtonInitial(t *testing.T) {
 
 func assertStateBools(t *testing.T, message string, w SDL_Widget, ena, foc, cli, err, vis bool) {
 	assertBool(t, message, "IsEnabled", w.IsEnabled(), ena)
-	assertBool(t, message, "IsFocused", w.IsFocused(), foc)
+	if w.CanFocus() {
+		assertBool(t, message, "IsFocused", w.IsFocused(), foc)
+	}
 	assertBool(t, message, "IsClicked", w.IsClicked(), cli)
 	assertBool(t, message, "IsError", w.IsError(), err)
 	assertBool(t, message, "IsVisible", w.IsVisible(), vis)

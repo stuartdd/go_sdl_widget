@@ -22,12 +22,17 @@ func NewWidgetSubGroup(x, y, w, h, id int32, font *ttf.Font, style STATE_BITS) *
 		font = GetResourceInstance().GetFont()
 	}
 	sg := &SDL_WidgetSubGroup{font: font, base: nil, count: 0}
-	sg.SDL_WidgetBase = initBase(x, y, w, h, id, 0, style)
+	sg.SDL_WidgetBase = initBase(x, y, w, h, id, 0, false, style, nil)
 	return sg
 }
 
 func (wl *SDL_WidgetSubGroup) Draw(renderer *sdl.Renderer, f *ttf.Font) error {
 	if wl.IsEnabled() {
+		if wl.ShouldDrawBackground() {
+			bc := wl.GetBackground()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
+			renderer.FillRect(&sdl.Rect{X: wl.x, Y: wl.y, W: wl.w, H: wl.h})
+		}
 		if f == nil {
 			f = wl.GetFont()
 		}
@@ -39,30 +44,40 @@ func (wl *SDL_WidgetSubGroup) Draw(renderer *sdl.Renderer, f *ttf.Font) error {
 			}
 			w = w.next
 		}
+		if wl.ShouldDrawBorder() {
+			bc := wl.GetBorderColour()
+			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
+			renderer.DrawRect(&sdl.Rect{X: wl.x + 1, Y: wl.y + 1, W: wl.w - 2, H: wl.h - 2})
+			renderer.DrawRect(&sdl.Rect{X: wl.x + 2, Y: wl.y + 2, W: wl.w - 4, H: wl.h - 4})
+		}
 	}
 	return nil
 }
 
 func (wl *SDL_WidgetSubGroup) Click(md *SDL_MouseData) bool {
-	w := wl.base
-	for w != nil {
-		if w.widget.Click(md) {
-			return true
+	if wl.IsEnabled() {
+		w := wl.base
+		for w != nil {
+			if w.widget.Click(md) {
+				return true
+			}
+			w = w.next
 		}
-		w = w.next
 	}
 	return false
 }
 
 func (wl *SDL_WidgetSubGroup) KeyPress(c int, ctrl, down bool) bool {
-	w := wl.base
-	for w != nil {
-		if w.widget.IsFocused() {
-			if w.widget.KeyPress(c, ctrl, down) {
-				return true
+	if wl.IsEnabled() {
+		w := wl.base
+		for w != nil {
+			if w.widget.CanFocus() && w.widget.IsFocused() {
+				if w.widget.KeyPress(c, ctrl, down) {
+					return true
+				}
 			}
+			w = w.next
 		}
-		w = w.next
 	}
 	return false
 }
@@ -85,11 +100,32 @@ func (wl *SDL_WidgetSubGroup) Destroy() {
 	}
 }
 
-func (b *SDL_WidgetSubGroup) Inside(x, y int32) bool {
-	if b.IsVisible() {
-		return isInsideRect(x, y, b.GetRect())
+func (wl *SDL_WidgetSubGroup) Inside(x, y int32) bool {
+	if wl.IsVisible() {
+		return isInsideRect(x, y, wl.SDL_WidgetBase.GetRect())
 	}
 	return false
+}
+
+func (wl *SDL_WidgetSubGroup) SetPositionRel(x, y int32) bool {
+	if x == 0 && y == 0 {
+		return false
+	}
+	wl.SDL_WidgetBase.SetPositionRel(x, y)
+	w := wl.base
+	for w != nil {
+		w.widget.SetPositionRel(x, y)
+		w = w.next
+	}
+	return true
+}
+
+func (wl *SDL_WidgetSubGroup) SetPosition(x, y int32) bool {
+	min := wl.GetSmallestRect()
+	dx := x - min.X
+	dy := y - min.Y
+	wl.SetPositionRel(dx, dy)
+	return true
 }
 
 // ------------------------------------------------------------
@@ -106,7 +142,10 @@ func (wl *SDL_WidgetSubGroup) GetFont() *ttf.Font {
 	return wl.font
 }
 
-func (wl *SDL_WidgetSubGroup) Add(widget SDL_Widget) {
+func (wl *SDL_WidgetSubGroup) Add(widget SDL_Widget) SDL_Widget {
+	if widget == nil {
+		return nil
+	}
 	if wl.base == nil {
 		wl.base = &SDL_LinkedWidget{widget: widget, next: nil}
 		wl.count = 1
@@ -123,6 +162,17 @@ func (wl *SDL_WidgetSubGroup) Add(widget SDL_Widget) {
 		}
 		wl.count = c
 	}
+	return widget
+}
+
+func (wl *SDL_WidgetSubGroup) GetSmallestRect() *sdl.Rect {
+	r := sdl.Rect{X: 0, Y: 0, W: 0, H: 0}
+	w := wl.base
+	for w != nil {
+		r = r.Union(w.widget.GetRect())
+		w = w.next
+	}
+	return &r
 }
 
 func (wl *SDL_WidgetSubGroup) ListWidgets() []SDL_Widget {
@@ -162,7 +212,9 @@ func (wl *SDL_WidgetSubGroup) InsideWidget(x, y int32) SDL_Widget {
 func (wl *SDL_WidgetSubGroup) SetFocusedId(id int32) {
 	w := wl.base
 	for w != nil {
-		w.widget.SetFocused(w.widget.GetWidgetId() == id)
+		if w.widget.CanFocus() {
+			w.widget.SetFocused(w.widget.GetWidgetId() == id)
+		}
 		w = w.next
 	}
 }
@@ -170,15 +222,26 @@ func (wl *SDL_WidgetSubGroup) SetFocusedId(id int32) {
 func (wl *SDL_WidgetSubGroup) ClearFocus() {
 	w := wl.base
 	for w != nil {
-		w.widget.SetFocused(false)
+		if w.widget.CanFocus() {
+			w.widget.SetFocused(false)
+		}
 		w = w.next
 	}
+}
+
+func (wl *SDL_WidgetSubGroup) RemoveAllWidgets() {
+	w := wl.base
+	for w != nil {
+		w.widget.Destroy()
+		w = w.next
+	}
+	wl.base = nil
 }
 
 func (wl *SDL_WidgetSubGroup) ClearSelection() {
 	w := wl.base
 	for w != nil {
-		f, ok := w.widget.(SDL_CanFocus)
+		f, ok := w.widget.(SDL_CanSelectText)
 		if ok {
 			f.ClearSelection()
 		}
@@ -189,9 +252,9 @@ func (wl *SDL_WidgetSubGroup) ClearSelection() {
 func (wl *SDL_WidgetSubGroup) NextFrame() {
 	w := wl.base
 	for w != nil {
-		f, ok := w.widget.(SDL_ImageWidget)
+		iw, ok := w.widget.(SDL_ImageWidget)
 		if ok {
-			f.NextFrame()
+			iw.NextFrame()
 		}
 		w = w.next
 	}
@@ -200,7 +263,7 @@ func (wl *SDL_WidgetSubGroup) NextFrame() {
 func (wl *SDL_WidgetSubGroup) GetFocusedWidget() SDL_Widget {
 	w := wl.base
 	for w != nil {
-		if w.widget.IsFocused() {
+		if w.widget.CanFocus() && w.widget.IsFocused() {
 			return w.widget
 		}
 		w = w.next

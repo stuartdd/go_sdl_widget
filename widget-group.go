@@ -25,33 +25,33 @@ func (wg *SDL_WidgetGroup) NewWidgetSubGroup(x, y, w, h, id int32, style STATE_B
 
 func (wg *SDL_WidgetGroup) AllWidgets() []SDL_Widget {
 	l := make([]SDL_Widget, 0)
-	for _, wList := range wg.wigetLists {
-		l = append(l, wList.ListWidgets()...)
+	for _, wl := range wg.wigetLists {
+		l = append(l, wl.ListWidgets()...)
 	}
 	return l
 }
 
 func (wg *SDL_WidgetGroup) SetFocusedId(id int32) {
-	for _, wList := range wg.wigetLists {
-		wList.SetFocusedId(id)
+	for _, wl := range wg.wigetLists {
+		wl.SetFocusedId(id)
 	}
 }
 
 func (wg *SDL_WidgetGroup) ClearFocus() {
-	for _, wList := range wg.wigetLists {
-		wList.ClearFocus()
+	for _, wl := range wg.wigetLists {
+		wl.ClearFocus()
 	}
 }
 
 func (wg *SDL_WidgetGroup) ClearSelection() {
-	for _, wList := range wg.wigetLists {
-		wList.ClearSelection()
+	for _, wl := range wg.wigetLists {
+		wl.ClearSelection()
 	}
 }
 
 func (wg *SDL_WidgetGroup) GetFocusedWidget() SDL_Widget {
-	for _, wList := range wg.wigetLists {
-		f := wList.GetFocusedWidget()
+	for _, wl := range wg.wigetLists {
+		f := wl.GetFocusedWidget()
 		if f != nil {
 			return f
 		}
@@ -85,23 +85,25 @@ func (wg *SDL_WidgetGroup) AllSubGroups() []*SDL_WidgetSubGroup {
 }
 
 func (wg *SDL_WidgetGroup) KeyPress(c int, ctrl, down bool) bool {
-	for _, wList := range wg.wigetLists {
-		if wList.KeyPress(c, ctrl, down) {
-			return true
+	for _, wl := range wg.wigetLists {
+		if wl.IsEnabled() {
+			if wl.KeyPress(c, ctrl, down) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
 func (wg *SDL_WidgetGroup) Scale(s float32) {
-	for _, w := range wg.wigetLists {
-		w.Scale(s)
+	for _, wl := range wg.wigetLists {
+		wl.Scale(s)
 	}
 }
 
 func (wg *SDL_WidgetGroup) NextFrame() {
-	for _, w := range wg.wigetLists {
-		w.NextFrame()
+	for _, wl := range wg.wigetLists {
+		wl.NextFrame()
 	}
 }
 
@@ -113,16 +115,20 @@ func (wg *SDL_WidgetGroup) Destroy() {
 }
 
 func (wg *SDL_WidgetGroup) Draw(renderer *sdl.Renderer) {
-	for _, w := range wg.wigetLists {
-		w.Draw(renderer, wg.font)
+	for _, wl := range wg.wigetLists {
+		if wl.IsVisible() {
+			wl.Draw(renderer, wg.font)
+		}
 	}
 }
 
 func (wg *SDL_WidgetGroup) InsideWidget(x, y int32) SDL_Widget {
 	for _, wl := range wg.wigetLists {
-		w := wl.InsideWidget(x, y)
-		if w != nil {
-			return w
+		if wl.IsEnabled() {
+			w := wl.InsideWidget(x, y)
+			if w != nil {
+				return w
+			}
 		}
 	}
 	return nil
