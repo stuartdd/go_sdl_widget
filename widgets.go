@@ -25,13 +25,13 @@ type SDL_Shape struct {
 
 var _ SDL_Widget = (*SDL_Shape)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
-func NewSDLShape(x, y, w, h, id int32, style STATE_BITS, onClick func(int32, int32, int32) bool) *SDL_Shape {
+func NewSDLShape(x, y, w, h, id int32, style STATE_BITS, onClick func(string, int32, int32, int32) bool) *SDL_Shape {
 	shape := &SDL_Shape{vxIn: make([]int16, 0), vyIn: make([]int16, 0), validRect: nil}
-	shape.SDL_WidgetBase = initBase(x, y, w, h, id, 0, false, style, onClick)
+	shape.SDL_WidgetBase = initBase(x, y, w, h, id, shape, 0, false, style, onClick)
 	return shape
 }
 
-func NewSDLShapeArrowRight(x, y, w, h, id int32, style STATE_BITS, onClick func(int32, int32, int32) bool) *SDL_Shape {
+func NewSDLShapeArrowRight(x, y, w, h, id int32, style STATE_BITS, onClick func(string, int32, int32, int32) bool) *SDL_Shape {
 	sh := NewSDLShape(x, y, w, h, id, style, onClick)
 	var halfH int32 = h / 2
 	var qtr1H int32 = h / 4
@@ -106,13 +106,6 @@ func (s *SDL_Shape) Rotate(angle int) {
 	s.validRect = nil
 }
 
-func (s *SDL_Shape) Inside(x, y int32) bool {
-	if s.IsVisible() {
-		return isInsideRect(x, y, s.GetRect())
-	}
-	return false
-}
-
 func (s *SDL_Shape) GetRect() *sdl.Rect {
 	if s.validRect == nil {
 		count := len(s.vxIn)
@@ -167,7 +160,7 @@ var _ SDL_Widget = (*SDL_Label)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLLabel(x, y, w, h, id int32, text string, align ALIGN_TEXT, style STATE_BITS) *SDL_Label {
 	but := &SDL_Label{text: text, align: align, cacheKey: fmt.Sprintf("label:%d:%d", id, rand.Intn(100))}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, false, style, nil)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, but, 0, false, style, nil)
 	return but
 }
 
@@ -183,43 +176,51 @@ func (b *SDL_Label) GetText() string {
 
 func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 	if b.IsVisible() {
-		ctwe, err := GetResourceInstance().UpdateTextureFromString(renderer, b.cacheKey, b.text, font, b.GetForeground())
+		cachedTexture, err := GetResourceInstance().UpdateTextureFromString(renderer, b.cacheKey, b.text, font, b.GetForeground())
 		if err != nil {
 			renderer.SetDrawColor(255, 0, 0, 255)
 			renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 			return nil
 		}
 		if b.align == ALIGN_FIT {
-			b.SetSize(ctwe.W, b.h)
+			b.SetSize(cachedTexture.W, b.h)
 		}
+		tm := (b.h / 9)
+		rw, sw, sh := cachedTexture.ScaledWidthHeight(b.h-(2*tm), b.w)
 
-		bh := float32(b.h)
-		th := int32(bh - (bh / 4))
-		tw := int32(float32(ctwe.W) * (bh / float32(ctwe.H)))
+		al := b.align
+		if sw > (b.w - 10) {
+			al = ALIGN_LEFT
+			sw = b.w - 10
+		}
 		var tx int32
 
-		switch b.align {
+		switch al {
 		case ALIGN_CENTER:
-			tx = (b.w - tw) / 2
+			tx = (b.w - sw) / 2
 		case ALIGN_LEFT:
-			tx = 10
+			tx = 0
 		case ALIGN_RIGHT:
-			tx = (b.x + b.w) - tw
+			tx = (b.x + b.w) - sw
 		}
-		ty := (b.h - th) / 2
 
 		if b.ShouldDrawBackground() {
 			bc := b.GetBackground()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
-		renderer.Copy(ctwe.Texture, nil, &sdl.Rect{X: b.x + tx, Y: b.y + ty, W: tw, H: th})
+		renderer.Copy(
+			cachedTexture.Texture,
+			&sdl.Rect{X: 0, Y: 0, W: rw, H: cachedTexture.H},
+			&sdl.Rect{X: b.x + tx, Y: b.y + tm, W: sw, H: sh})
 		if b.ShouldDrawBorder() {
 			bc := b.GetBorderColour()
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
 			renderer.DrawRect(&sdl.Rect{X: b.x + 2, Y: b.y + 2, W: b.w - 4, H: b.h - 4})
 		}
+		renderer.SetDrawColor(255, 0, 0, 255)
+		renderer.DrawRect(b.GetRect())
 	}
 	return nil
 }
@@ -231,16 +232,15 @@ func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 **/
 type SDL_Button struct {
 	SDL_WidgetBase
-	text    string
-	onClick func(SDL_Widget, int32, int32) bool
+	text string
 }
 
 var _ SDL_TextWidget = (*SDL_Button)(nil) // Ensure SDL_Button 'is a' SDL_TextWidget
 var _ SDL_Widget = (*SDL_Button)(nil)     // Ensure SDL_Button 'is a' SDL_Widget
 
-func NewSDLButton(x, y, w, h, id int32, text string, style STATE_BITS, deBounce int, onClick func(int32, int32, int32) bool) *SDL_Button {
+func NewSDLButton(x, y, w, h, id int32, text string, style STATE_BITS, deBounce int, onClick func(string, int32, int32, int32) bool) *SDL_Button {
 	but := &SDL_Button{text: text}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, false, style, onClick)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, but, deBounce, false, style, onClick)
 	return but
 }
 
@@ -299,10 +299,14 @@ type SDL_Image struct {
 var _ SDL_ImageWidget = (*SDL_Image)(nil) // Ensure SDL_Image 'is a' SDL_ImageWidget
 var _ SDL_Widget = (*SDL_Image)(nil)      // Ensure SDL_Image 'is a' SDL_Widget
 
-func NewSDLImage(x, y, w, h, id int32, textureName string, frame, frameCount int32, style STATE_BITS, deBounce int, onClick func(int32, int32, int32) bool) *SDL_Image {
+func NewSDLImage(x, y, w, h, id int32, textureName string, frame, frameCount int32, style STATE_BITS, deBounce int, onClick func(string, int32, int32, int32) bool) *SDL_Image {
 	but := &SDL_Image{textureName: textureName, frame: frame, frameCount: frameCount}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, deBounce, false, style, onClick)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, but, deBounce, false, style, onClick)
 	return but
+}
+
+func (b *SDL_Image) String() string {
+	return b.textureName
 }
 
 func (b *SDL_Image) SetFrame(tf int32) {
@@ -381,7 +385,7 @@ var _ SDL_Widget = (*SDL_Separator)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewSDLSeparator(x, y, w, h, id int32, style STATE_BITS) *SDL_Separator {
 	but := &SDL_Separator{}
-	but.SDL_WidgetBase = initBase(x, y, w, h, id, 0, false, style, nil)
+	but.SDL_WidgetBase = initBase(x, y, w, h, id, but, 0, false, style, nil)
 	return but
 }
 

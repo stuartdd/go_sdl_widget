@@ -125,8 +125,8 @@ func (wg *SDL_WidgetGroup) Draw(renderer *sdl.Renderer) {
 func (wg *SDL_WidgetGroup) InsideWidget(x, y int32) SDL_Widget {
 	for _, wl := range wg.wigetLists {
 		if wl.IsEnabled() {
-			w := wl.InsideWidget(x, y)
-			if w != nil {
+			w, ok := wl.Inside(x, y)
+			if ok && w != nil {
 				return w
 			}
 		}

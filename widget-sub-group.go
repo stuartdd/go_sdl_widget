@@ -15,14 +15,15 @@ type SDL_WidgetSubGroup struct {
 	font  *ttf.Font
 }
 
-var _ SDL_Widget = (*SDL_WidgetSubGroup)(nil) // Ensure SDL_Button 'is a' SDL_Widget
+var _ SDL_Widget = (*SDL_WidgetSubGroup)(nil)    // Ensure SDL_Button 'is a' SDL_Widget
+var _ SDL_Container = (*SDL_WidgetSubGroup)(nil) // Ensure SDL_Button 'is a' SDL_Widget
 
 func NewWidgetSubGroup(x, y, w, h, id int32, font *ttf.Font, style STATE_BITS) *SDL_WidgetSubGroup {
 	if font == nil {
 		font = GetResourceInstance().GetFont()
 	}
 	sg := &SDL_WidgetSubGroup{font: font, base: nil, count: 0}
-	sg.SDL_WidgetBase = initBase(x, y, w, h, id, 0, false, style, nil)
+	sg.SDL_WidgetBase = initBase(x, y, w, h, id, sg, 0, false, style, nil)
 	return sg
 }
 
@@ -100,11 +101,26 @@ func (wl *SDL_WidgetSubGroup) Destroy() {
 	}
 }
 
-func (wl *SDL_WidgetSubGroup) Inside(x, y int32) bool {
+func (wl *SDL_WidgetSubGroup) Inside(x, y int32) (SDL_Widget, bool) {
 	if wl.IsVisible() {
-		return isInsideRect(x, y, wl.SDL_WidgetBase.GetRect())
+		linkedWidget := wl.base
+		for linkedWidget != nil {
+			ww := linkedWidget.widget
+			wc, isContainer := ww.(SDL_Container)
+			if isContainer {
+				www, found := wc.Inside(x, y)
+				if found {
+					return www, true
+				}
+			} else {
+				if isInsideRect(x, y, ww.GetRect()) {
+					return ww, true
+				}
+			}
+			linkedWidget = linkedWidget.next
+		}
 	}
-	return false
+	return nil, false
 }
 
 func (wl *SDL_WidgetSubGroup) SetPositionRel(x, y int32) bool {
@@ -121,7 +137,7 @@ func (wl *SDL_WidgetSubGroup) SetPositionRel(x, y int32) bool {
 }
 
 func (wl *SDL_WidgetSubGroup) SetPosition(x, y int32) bool {
-	min := wl.GetSmallestRect()
+	min := wl.GetSmallestRect(nil)
 	dx := x - min.X
 	dy := y - min.Y
 	wl.SetPositionRel(dx, dy)
@@ -165,12 +181,22 @@ func (wl *SDL_WidgetSubGroup) Add(widget SDL_Widget) SDL_Widget {
 	return widget
 }
 
-func (wl *SDL_WidgetSubGroup) GetSmallestRect() *sdl.Rect {
+func (wl *SDL_WidgetSubGroup) GetSmallestRect(within *sdl.Rect) *sdl.Rect {
 	r := sdl.Rect{X: 0, Y: 0, W: 0, H: 0}
 	w := wl.base
 	for w != nil {
 		r = r.Union(w.widget.GetRect())
 		w = w.next
+	}
+	if within != nil {
+		max := (within.X + within.W)
+		if (r.X + r.W) > max {
+			r.W = max - r.X
+		}
+		max = (within.Y + within.H)
+		if (r.Y + r.H) > max {
+			r.H = max - r.Y
+		}
 	}
 	return &r
 }
@@ -191,17 +217,6 @@ func (wl *SDL_WidgetSubGroup) GetWidgetWithId(id int32) SDL_Widget {
 	w := wl.base
 	for w != nil {
 		if w.widget.GetWidgetId() == id {
-			return w.widget
-		}
-		w = w.next
-	}
-	return nil
-}
-
-func (wl *SDL_WidgetSubGroup) InsideWidget(x, y int32) SDL_Widget {
-	w := wl.base
-	for w != nil {
-		if w.widget.Inside(x, y) {
 			return w.widget
 		}
 		w = w.next
@@ -256,6 +271,10 @@ func (wl *SDL_WidgetSubGroup) NextFrame() {
 		if ok {
 			iw.NextFrame()
 		}
+		wc, ok := w.widget.(SDL_Container)
+		if ok {
+			wc.NextFrame()
+		}
 		w = w.next
 	}
 }
@@ -302,6 +321,38 @@ func (wl *SDL_WidgetSubGroup) ArrangeRL(xx, yy, padding int32) (int32, int32) {
 			x = (x - width) - padding
 		}
 		w = w.next
+	}
+	return x, y
+}
+
+func (wl *SDL_WidgetSubGroup) ArrangeGrid(rect *sdl.Rect, padding int32, colsW []int32) (int32, int32) {
+	wl.SetRect(wl.GetSmallestRect(rect))
+	x := rect.X
+	y := rect.Y
+	maxW := x + rect.W
+	//	maxH := y + rect.H
+	var width, height int32
+	c := 0
+	linkedW := wl.base
+	for linkedW != nil && linkedW.widget != nil {
+		ww := linkedW.widget
+		if ww.IsVisible() {
+			width, height = ww.GetSize()
+			ww.SetPosition(x, y)
+			if c == len(colsW)-1 {
+				ww.SetSize(maxW-x, height)
+			} else {
+				ww.SetSize(colsW[c], height)
+			}
+			x = (x + width)
+			c++
+			if c >= len(colsW) {
+				c = 0
+				x = rect.X
+				y = y + height + padding - 3
+			}
+		}
+		linkedW = linkedW.next
 	}
 	return x, y
 }

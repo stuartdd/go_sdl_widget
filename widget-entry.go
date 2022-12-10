@@ -46,7 +46,7 @@ func NewSDLEntry(x, y, w, h, id int32, text string, style STATE_BITS, onChange f
 	ent.ClearSelection()
 	ent.SetSelecteCharsFwd(GetResourceInstance().GetSelecteCharsFwd())
 	ent.SetSelecteCharsRev(GetResourceInstance().GetSelecteCharsRev())
-	ent.SDL_WidgetBase = initBase(x, y, w, h, id, 0, true, style, nil)
+	ent.SDL_WidgetBase = initBase(x, y, w, h, id, ent, 0, true, style, nil)
 	return ent
 }
 
@@ -64,6 +64,10 @@ func (b *SDL_Entry) SetSelecteCharsRev(s string) {
 
 func (b *SDL_Entry) GetSelecteCharsRev() string {
 	return string(b.selecteCharsRev)
+}
+
+func (b *SDL_Entry) String() string {
+	return b.text
 }
 
 func (b *SDL_Entry) SetText(text string) {

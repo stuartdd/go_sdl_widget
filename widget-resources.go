@@ -310,6 +310,14 @@ func (tce *SDL_TextureCacheEntry) Destroy() int {
 	return 0
 }
 
+func (tce *SDL_TextureCacheEntry) ScaledWidthHeight(txtH, clientW int32) (int32, int32, int32) {
+	w1 := int32(float32(tce.W) * (float32(txtH) / float32(tce.H)))
+	if clientW <= w1 {
+		return int32(float32(tce.W) * (float32(clientW) / float32(w1))), w1, txtH
+	}
+	return tce.W, w1, txtH
+}
+
 func newTextureCacheEntryForFile(renderer *sdl.Renderer, fileName string) (*SDL_TextureCacheEntry, error) {
 	texture, err := img.LoadTexture(renderer, fileName)
 	if err != nil {

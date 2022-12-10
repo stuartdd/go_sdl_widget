@@ -73,36 +73,36 @@ type SDL_Widget interface {
 	Draw(*sdl.Renderer, *ttf.Font) error
 	Scale(float32)
 	Click(*SDL_MouseData) bool
-	SetOnClick(func(int32, int32, int32) bool) // Base
-	Inside(int32, int32) bool                  // Base
-	GetRect() *sdl.Rect                        // Base
-	SetRect(*sdl.Rect)                         // Base
-	SetWidgetId(int32)                         // Base
-	GetWidgetId() int32                        // Base
-	SetVisible(bool)                           // Base
-	IsVisible() bool                           // Base
-	SetClicked(bool)                           // Base
-	IsClicked() bool                           // Base
-	SetEnabled(bool)                           // Base
-	IsEnabled() bool                           // Base
-	SetError(bool)                             // Base
-	IsError() bool                             // Base
-	SetPosition(int32, int32) bool             // Base
-	SetPositionRel(int32, int32) bool          // Base
-	GetPosition() (int32, int32)               // Base
-	SetSize(int32, int32) bool                 // Base
-	GetSize() (int32, int32)                   // Base
-	GetForeground() *sdl.Color                 // Base
-	GetBackground() *sdl.Color                 // Base
-	GetBorderColour() *sdl.Color               // Base
-	SetForeground(*sdl.Color)                  // Base
-	SetBackground(*sdl.Color)                  // Base
-	SetBorderColour(*sdl.Color)                // Base
-	SetDrawBackground(bool)                    // Base
-	ShouldDrawBackground() bool                // Base
-	SetDrawBorder(bool)                        // Base
-	ShouldDrawBorder() bool                    // Base
-	Destroy()                                  // Base
+	SetOnClick(func(string, int32, int32, int32) bool) // Base
+	Inside(int32, int32) (SDL_Widget, bool)            // Base
+	GetRect() *sdl.Rect                                // Base
+	SetRect(*sdl.Rect)                                 // Base
+	SetWidgetId(int32)                                 // Base
+	GetWidgetId() int32                                // Base
+	SetVisible(bool)                                   // Base
+	IsVisible() bool                                   // Base
+	SetClicked(bool)                                   // Base
+	IsClicked() bool                                   // Base
+	SetEnabled(bool)                                   // Base
+	IsEnabled() bool                                   // Base
+	SetError(bool)                                     // Base
+	IsError() bool                                     // Base
+	SetPosition(int32, int32) bool                     // Base
+	SetPositionRel(int32, int32) bool                  // Base
+	GetPosition() (int32, int32)                       // Base
+	SetSize(int32, int32) bool                         // Base
+	GetSize() (int32, int32)                           // Base
+	GetForeground() *sdl.Color                         // Base
+	GetBackground() *sdl.Color                         // Base
+	GetBorderColour() *sdl.Color                       // Base
+	SetForeground(*sdl.Color)                          // Base
+	SetBackground(*sdl.Color)                          // Base
+	SetBorderColour(*sdl.Color)                        // Base
+	SetDrawBackground(bool)                            // Base
+	ShouldDrawBackground() bool                        // Base
+	SetDrawBorder(bool)                                // Base
+	ShouldDrawBorder() bool                            // Base
+	Destroy()                                          // Base
 	SetLog(func(LOG_LEVEL, string))
 	Log(LOG_LEVEL, string)
 	CanLog() bool
@@ -112,6 +112,7 @@ type SDL_Widget interface {
 	IsFocused() bool            // Base
 	GetFocusColour() *sdl.Color // Base
 	SetFocusColour(*sdl.Color)  // Base
+	String() string
 }
 
 type SDL_CanSelectText interface {
@@ -122,6 +123,18 @@ type SDL_CanSelectText interface {
 type SDL_TextWidget interface {
 	SetText(text string)
 	GetText() string
+}
+
+type SDL_Container interface {
+	Add(SDL_Widget) SDL_Widget
+	ListWidgets() []SDL_Widget
+	GetWidgetWithId(int32) SDL_Widget
+	SetFocusedId(int32)
+	GetFocusedWidget() SDL_Widget
+	RemoveAllWidgets()
+	ClearFocus()
+	Inside(int32, int32) (SDL_Widget, bool)
+	NextFrame()
 }
 
 type SDL_ImageWidget interface {
@@ -139,8 +152,9 @@ type SDL_LinkedWidget struct {
 type SDL_WidgetBase struct {
 	x, y, w, h   int32
 	widgetId     int32
+	instance     SDL_Widget
 	deBounce     int
-	onClick      func(int32, int32, int32) bool
+	onClick      func(string, int32, int32, int32) bool
 	background   *sdl.Color
 	foreground   *sdl.Color
 	borderColour *sdl.Color
@@ -153,13 +167,14 @@ type SDL_WidgetBase struct {
 /****************************************************************************************
 * Common (base) functions for ALL SDL_Widget instances
 **/
-func initBase(x, y, w, h, widgetId int32, deBounce int, canfocus bool, style STATE_BITS, onClick func(int32, int32, int32) bool) SDL_WidgetBase {
+func initBase(x, y, w, h, widgetId int32, instance SDL_Widget, deBounce int, canfocus bool, style STATE_BITS, onClick func(string, int32, int32, int32) bool) SDL_WidgetBase {
 	return SDL_WidgetBase{
 		x:            x,
 		y:            y,
 		w:            w,
 		h:            h,
 		widgetId:     widgetId,
+		instance:     instance,
 		canfocus:     canfocus,
 		deBounce:     deBounce,
 		onClick:      onClick,
@@ -171,8 +186,17 @@ func initBase(x, y, w, h, widgetId int32, deBounce int, canfocus bool, style STA
 	}
 }
 
+func (b *SDL_WidgetBase) String() string {
+	if b.instance != nil {
+		tw, isTextWidget := b.instance.(SDL_TextWidget)
+		if isTextWidget {
+			return tw.GetText()
+		}
+	}
+	return fmt.Sprintf("ID:%d", b.widgetId)
+}
+
 func (b *SDL_WidgetBase) Click(md *SDL_MouseData) bool {
-	fmt.Printf("%10.0b %d Click : %t Vis:%t En:%t \n", b.state, b.widgetId, b.IsClicked(), b.IsVisible(), b.IsEnabled())
 	if b.IsEnabled() && b.onClick != nil {
 		if b.deBounce > 0 {
 			b.SetClicked(true)
@@ -181,11 +205,12 @@ func (b *SDL_WidgetBase) Click(md *SDL_MouseData) bool {
 				b.SetClicked(false)
 			}()
 		}
-		return b.onClick(b.widgetId, md.x, md.y)
+		return b.onClick(b.String(), b.widgetId, md.x, md.y)
 	}
 	return false
 }
-func (b *SDL_WidgetBase) SetOnClick(f func(int32, int32, int32) bool) {
+
+func (b *SDL_WidgetBase) SetOnClick(f func(string, int32, int32, int32) bool) {
 	b.onClick = f
 }
 
@@ -342,9 +367,6 @@ func (b *SDL_WidgetBase) SetEnabled(e bool) {
 	} else {
 		b.state = b.state & ^WIDGET_STATE_ENABLED
 	}
-	if b.widgetId == 10002 {
-		fmt.Printf("%10.0b %d SetEnabled %t : %t Vis:%t En:%t \n", b.state, b.widgetId, e, b.IsClicked(), b.IsVisible(), b.IsEnabled())
-	}
 }
 
 func (b *SDL_WidgetBase) IsEnabled() bool {
@@ -427,11 +449,11 @@ func (b *SDL_WidgetBase) GetFocusColour() *sdl.Color {
 	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_ENTRY)
 }
 
-func (b *SDL_WidgetBase) Inside(x, y int32) bool {
-	if b.IsVisible() {
-		return isInsideRect(x, y, b.GetRect())
+func (b *SDL_WidgetBase) Inside(x, y int32) (SDL_Widget, bool) {
+	if b.IsVisible() && isInsideRect(x, y, b.GetRect()) {
+		return b.instance, true
 	}
-	return false
+	return nil, false
 }
 
 /****************************************************************************************
