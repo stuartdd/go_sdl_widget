@@ -6,19 +6,19 @@ import (
 
 func TestSubGroups(t *testing.T) {
 	sub := NewWidgetSubGroup(0, 0, 0, 0, 666, nil, WIDGET_STYLE_NONE)
-	if sub.count != 0 {
+	if sub.countBase != 0 {
 		t.Error("Count should be zero")
 	}
-	sub.Add(NewSDLSeparator(10, 10, 10, 10, 999, WIDGET_STYLE_BORDER_AND_BG))
-	if sub.count != 1 {
+	sub.Add(NewSDLSeparator(10, 10, 10, 10, 999, WIDGET_STYLE_DRAW_BORDER_AND_BG))
+	if sub.countBase != 1 {
 		t.Error("Count should be 1")
 	}
-	sub.Add(NewSDLSeparator(10, 10, 10, 10, 888, WIDGET_STYLE_BORDER_AND_BG))
-	if sub.count != 2 {
+	sub.Add(NewSDLSeparator(10, 10, 10, 10, 888, WIDGET_STYLE_DRAW_BORDER_AND_BG))
+	if sub.countBase != 2 {
 		t.Error("Count should be 2")
 	}
-	sub.Add(NewSDLSeparator(10, 10, 10, 10, 777, WIDGET_STYLE_BORDER_AND_BG))
-	if sub.count != 3 {
+	sub.Add(NewSDLSeparator(10, 10, 10, 10, 777, WIDGET_STYLE_DRAW_BORDER_AND_BG))
+	if sub.countBase != 3 {
 		t.Error("Count should be 3")
 	}
 

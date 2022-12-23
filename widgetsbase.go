@@ -41,17 +41,17 @@ const (
 	ENTRY_EVENT_FOCUS
 	ENTRY_EVENT_UN_FOCUS
 
-	WIDGET_STYLE_NONE          STATE_BITS = 0b0000000000000001
-	WIDGET_STYLE_DRAW_BORDER   STATE_BITS = 0b0000000000000010
-	WIDGET_STYLE_DRAW_BG       STATE_BITS = 0b0000000000001000
-	WIDGET_STYLE_BORDER_AND_BG STATE_BITS = WIDGET_STYLE_DRAW_BORDER | WIDGET_STYLE_DRAW_BG
-	WIDGET_STATE_ENABLED       STATE_BITS = 0b0000000000010000
-	WIDGET_STATE_VISIBLE       STATE_BITS = 0b0000000000100000
-	WIDGET_STATE_NOT_FOCUSED   STATE_BITS = 0b0000000001000000
-	WIDGET_STATE_NOT_ERROR     STATE_BITS = 0b0000000010000000
-	WIDGET_STATE_NOT_CLICKED   STATE_BITS = 0b0000000100000000
-	WIDGET_STATE_STA_BITS      STATE_BITS = 0b0000000111110000 // Clear state AND mask. Retains style.
-	WIDGET_STATE_ENA_SET       STATE_BITS = 0b0000000100110000 // Enabled visible and not-clicked
+	WIDGET_STYLE_NONE               STATE_BITS = 0b0000000000000001
+	WIDGET_STYLE_DRAW_BORDER        STATE_BITS = 0b0000000000000010
+	WIDGET_STYLE_DRAW_BG            STATE_BITS = 0b0000000000001000
+	WIDGET_STYLE_DRAW_BORDER_AND_BG STATE_BITS = WIDGET_STYLE_DRAW_BORDER | WIDGET_STYLE_DRAW_BG
+	WIDGET_STATE_ENABLED            STATE_BITS = 0b0000000000010000
+	WIDGET_STATE_VISIBLE            STATE_BITS = 0b0000000000100000
+	WIDGET_STATE_NOT_FOCUSED        STATE_BITS = 0b0000000001000000
+	WIDGET_STATE_NOT_ERROR          STATE_BITS = 0b0000000010000000
+	WIDGET_STATE_NOT_CLICKED        STATE_BITS = 0b0000000100000000
+	WIDGET_STATE_STA_BITS           STATE_BITS = 0b0000000111110000 // Clear state AND mask. Retains style.
+	WIDGET_STATE_ENA_SET            STATE_BITS = 0b0000000100110000 // Enabled visible and not-clicked
 
 	WIDGET_COLOR_FG     STYLE_COLOUR = 0 // Section indexes
 	WIDGET_COLOR_BG     STYLE_COLOUR = 1
@@ -131,7 +131,6 @@ type SDL_Container interface {
 	GetWidgetWithId(int32) SDL_Widget
 	SetFocusedId(int32)
 	GetFocusedWidget() SDL_Widget
-	RemoveAllWidgets()
 	ClearFocus()
 	Inside(int32, int32) (SDL_Widget, bool)
 	NextFrame()
@@ -284,15 +283,18 @@ func (b *SDL_WidgetBase) SetRect(r *sdl.Rect) {
 }
 
 func (b *SDL_WidgetBase) GetRect() *sdl.Rect {
-	x := b.x
-	if b.w < 0 {
-		x = b.x + b.w
+	if b.IsVisible() {
+		x := b.x
+		if b.w < 0 {
+			x = b.x + b.w
+		}
+		y := b.y
+		if b.h < 0 {
+			y = b.y + b.h
+		}
+		return &sdl.Rect{X: x, Y: y, W: b.w, H: b.h}
 	}
-	y := b.y
-	if b.h < 0 {
-		y = b.y + b.h
-	}
-	return &sdl.Rect{X: x, Y: y, W: b.w, H: b.h}
+	return &sdl.Rect{X: b.x, Y: b.y, W: 0, H: 0}
 }
 
 func (b *SDL_WidgetBase) GetSize() (int32, int32) {

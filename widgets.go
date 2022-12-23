@@ -219,8 +219,6 @@ func (b *SDL_Label) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.DrawRect(&sdl.Rect{X: b.x + 1, Y: b.y + 1, W: b.w - 2, H: b.h - 2})
 			renderer.DrawRect(&sdl.Rect{X: b.x + 2, Y: b.y + 2, W: b.w - 4, H: b.h - 4})
 		}
-		renderer.SetDrawColor(255, 0, 0, 255)
-		renderer.DrawRect(b.GetRect())
 	}
 	return nil
 }

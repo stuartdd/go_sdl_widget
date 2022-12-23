@@ -21,7 +21,7 @@ func TestWidgetCharCache(t *testing.T) {
 }
 
 func TestWidgetStateColourIndex(t *testing.T) {
-	w := NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_AND_BG, 0, nil)
+	w := NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_DRAW_BORDER_AND_BG, 0, nil)
 	assertStateColour(t, "Initial 1", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
 	w.SetEnabled(false)
 	assertStateColour(t, "Disabled", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
@@ -30,14 +30,14 @@ func TestWidgetStateColourIndex(t *testing.T) {
 	w.SetError(true)
 	assertStateColour(t, "Disabled + Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
 
-	w = NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_AND_BG, 0, nil)
+	w = NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_DRAW_BORDER_AND_BG, 0, nil)
 	assertStateColour(t, "Initial 2", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
 	w.SetFocused(true)
 	assertStateColour(t, "Focused", getStateColourIndex(w.state), WIDGET_COLOUR_FOCUS)
 	w.SetError(true)
 	assertStateColour(t, "Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
 
-	w = NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_AND_BG, 0, nil)
+	w = NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_DRAW_BORDER_AND_BG, 0, nil)
 	assertStateColour(t, "Initial 3", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
 	w.SetError(true)
 	assertStateColour(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
@@ -47,7 +47,7 @@ func TestWidgetStateColourIndex(t *testing.T) {
 }
 
 func TestWidgetBaseState(t *testing.T) {
-	w := NewSDLSeparator(0, 0, 0, 0, 99, WIDGET_STYLE_BORDER_AND_BG)
+	w := NewSDLSeparator(0, 0, 0, 0, 99, WIDGET_STYLE_DRAW_BORDER_AND_BG)
 	assertStateBools(t, "Initial state", w, true, false, false, false, true)
 
 	w.SetError(true)
@@ -118,7 +118,7 @@ func TestWidgetBaseState(t *testing.T) {
 }
 
 func TestWidgetButtonInitial(t *testing.T) {
-	w := NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_BORDER_AND_BG, 0, nil)
+	w := NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_DRAW_BORDER_AND_BG, 0, nil)
 	assertStateBools(t, "NewSDLButton initial", w, true, false, false, false, true)
 	assertBool(t, "NewSDLButton initial", "ShouldDrawBackground", w.ShouldDrawBackground(), true)
 	assertBool(t, "NewSDLButton initial", "ShouldDrawBorder", w.ShouldDrawBorder(), true)
