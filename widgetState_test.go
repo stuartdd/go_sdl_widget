@@ -22,27 +22,27 @@ func TestWidgetCharCache(t *testing.T) {
 
 func TestWidgetStateColourIndex(t *testing.T) {
 	w := NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_DRAW_BORDER_AND_BG, 0, nil)
-	assertStateColour(t, "Initial 1", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
+	assertStateColour(t, "Initial 1", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_ENABLED)
 	w.SetEnabled(false)
-	assertStateColour(t, "Disabled", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
+	assertStateColour(t, "Disabled", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_DISABLE)
 	w.SetFocused(true)
-	assertStateColour(t, "Disabled + Focused", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
+	assertStateColour(t, "Disabled + Focused", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_DISABLE)
 	w.SetError(true)
-	assertStateColour(t, "Disabled + Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_DISABLE)
+	assertStateColour(t, "Disabled + Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_DISABLE)
 
 	w = NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_DRAW_BORDER_AND_BG, 0, nil)
-	assertStateColour(t, "Initial 2", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
+	assertStateColour(t, "Initial 2", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_ENABLED)
 	w.SetFocused(true)
-	assertStateColour(t, "Focused", getStateColourIndex(w.state), WIDGET_COLOUR_FOCUS)
+	assertStateColour(t, "Focused", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_FOCUS)
 	w.SetError(true)
-	assertStateColour(t, "Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
+	assertStateColour(t, "Focused + Error", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_ERROR)
 
 	w = NewSDLButton(0, 0, 0, 0, 99, "Button", WIDGET_STYLE_DRAW_BORDER_AND_BG, 0, nil)
-	assertStateColour(t, "Initial 3", getStateColourIndex(w.state), WIDGET_COLOUR_ENABLED)
+	assertStateColour(t, "Initial 3", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_ENABLED)
 	w.SetError(true)
-	assertStateColour(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
+	assertStateColour(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_ERROR)
 	w.SetFocused(true)
-	assertStateColour(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_ERROR)
+	assertStateColour(t, "Error", getStateColourIndex(w.state), WIDGET_COLOUR_STATE_ERROR)
 
 }
 

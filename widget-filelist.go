@@ -88,7 +88,7 @@ func (fl *SDL_FileList) populateTemp(currentPath string) error {
 	}))
 
 	var lab *SDL_Label
-	lab = NewSDLLabel(x, y, w, h, wid, abs_fname, ALIGN_LEFT, WIDGET_STYLE_DRAW_BORDER_AND_BG)
+	lab = NewSDLLabel(x, y, w, h, wid, abs_fname, ALIGN_LEFT, WIDGET_STYLE_DRAW_BORDER)
 	fl.addToTemp(lab)
 	y = y + h
 

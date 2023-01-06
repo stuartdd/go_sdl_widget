@@ -21,6 +21,23 @@ type sdl_Resources struct {
 	selecteCharsRev    []byte
 }
 
+type STATE_COLOUR uint
+type STYLE_COLOUR uint
+
+const (
+	WIDGET_COLOUR_STATE_ENABLED STATE_COLOUR = 0
+	WIDGET_COLOUR_STATE_DISABLE STATE_COLOUR = 1
+	WIDGET_COLOUR_STATE_FOCUS   STATE_COLOUR = 2
+	WIDGET_COLOUR_STATE_ERROR   STATE_COLOUR = 3
+	WIDGET_COLOUR_STATE_MAX     STATE_COLOUR = 4
+
+	WIDGET_COLOUR_STYLE_FG     STYLE_COLOUR = 0 // Section indexes
+	WIDGET_COLOUR_STYLE_BG     STYLE_COLOUR = 1
+	WIDGET_COLOUR_STYLE_BORDER STYLE_COLOUR = 2
+	WIDGET_COLOUR_STYLE_ENTRY  STYLE_COLOUR = 3
+	WIDGET_COLOUR_STYLE_MAX    STYLE_COLOUR = 4
+)
+
 var sdlResourceInstanceLock = &sync.Mutex{}
 var sdlResourceInstance *sdl_Resources
 
@@ -28,33 +45,36 @@ func GetResourceInstance() *sdl_Resources {
 	if sdlResourceInstance == nil {
 		sdlResourceInstanceLock.Lock()
 		defer sdlResourceInstanceLock.Unlock()
+
 		if sdlResourceInstance == nil {
 			sdlResourceInstance = &sdl_Resources{
 				textureCache: NewTextureCache(),
-				colours:      make([][]*sdl.Color, 4),
+				colours:      make([][]*sdl.Color, WIDGET_COLOUR_STATE_MAX),
 			}
-			for i := 0; i < 4; i++ {
-				sdlResourceInstance.colours[i] = make([]*sdl.Color, WIDGET_COLOR_MAX)
+			var sci STATE_COLOUR = WIDGET_COLOUR_STATE_ENABLED
+			for sci = 0; sci < WIDGET_COLOUR_STATE_MAX; sci++ {
+				sdlResourceInstance.colours[sci] = make([]*sdl.Color, WIDGET_COLOUR_STYLE_MAX)
 			}
-			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_ENABLED][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
-			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 50, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_BORDER] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_DISABLE][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ENABLED][WIDGET_COLOUR_STYLE_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ENABLED][WIDGET_COLOUR_STYLE_BG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ENABLED][WIDGET_COLOUR_STYLE_BORDER] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ENABLED][WIDGET_COLOUR_STYLE_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
-			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_BG] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_FOCUS][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_FG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_BG] = &sdl.Color{R: 0, G: 50, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_BORDER] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_ENTRY] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
 
-			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BG] = &sdl.Color{R: 150, G: 0, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_ERROR][WIDGET_COLOR_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_FOCUS][WIDGET_COLOUR_STYLE_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_FOCUS][WIDGET_COLOUR_STYLE_BG] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_FOCUS][WIDGET_COLOUR_STYLE_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_FOCUS][WIDGET_COLOUR_STYLE_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
+
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ERROR][WIDGET_COLOUR_STYLE_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ERROR][WIDGET_COLOUR_STYLE_BG] = &sdl.Color{R: 150, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ERROR][WIDGET_COLOUR_STYLE_BORDER] = &sdl.Color{R: 255, G: 0, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ERROR][WIDGET_COLOUR_STYLE_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
 			sdlResourceInstance.cursorInsertColour = &sdl.Color{R: 255, G: 255, B: 255, A: 255}
 			sdlResourceInstance.cursorAppendColour = &sdl.Color{R: 255, G: 0, B: 255, A: 255}
@@ -67,16 +87,48 @@ func GetResourceInstance() *sdl_Resources {
 	return sdlResourceInstance
 }
 
-func (r *sdl_Resources) SetFont(font *ttf.Font) {
-	r.font = font
+func (r *sdl_Resources) Destroy() {
+	if r.font != nil {
+		r.font.Close()
+		ttf.Quit()
+	}
+	r.GetTextureCache().Destroy()
 }
 
-func (r *sdl_Resources) SetTextureCache(textureCache *SDL_TextureCache) {
-	r.textureCache = textureCache
+func (r *sdl_Resources) LoadFont(fontFile string, fontSize int) (*ttf.Font, error) {
+	if r.font == nil {
+		if err := ttf.Init(); err != nil {
+			return nil, fmt.Errorf("failed to init the ttf font system: %s", err)
+		}
+	}
+	font, err := ttf.OpenFont(fontFile, fontSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the font from file: %s", err)
+	}
+	if r.font == nil {
+		r.font = font
+	}
+	return font, nil
 }
 
-func (r *sdl_Resources) SetColour(stateIndex, colorIndex int, c *sdl.Color) {
-	r.colours[stateIndex][colorIndex] = c
+func (r *sdl_Resources) GetColour(stateIndex STATE_COLOUR, styleIndex STYLE_COLOUR) *sdl.Color {
+	if stateIndex >= WIDGET_COLOUR_STATE_MAX {
+		stateIndex = WIDGET_COLOUR_STATE_ERROR
+	}
+	if styleIndex >= WIDGET_COLOUR_STYLE_MAX {
+		styleIndex = WIDGET_COLOUR_STYLE_FG
+	}
+	return r.colours[stateIndex][styleIndex]
+}
+
+func (r *sdl_Resources) SetColour(stateIndex STATE_COLOUR, styleIndex STYLE_COLOUR, c *sdl.Color) {
+	if stateIndex >= WIDGET_COLOUR_STATE_MAX {
+		panic(fmt.Sprintf("sdl_Resources: SetColour: stateIndex %d > %d", stateIndex, WIDGET_COLOUR_STATE_MAX-1))
+	}
+	if styleIndex >= WIDGET_COLOUR_STYLE_MAX {
+		panic(fmt.Sprintf("sdl_Resources: SetColour: styleIndex %d > %d", styleIndex, WIDGET_COLOUR_STYLE_MAX-1))
+	}
+	r.colours[stateIndex][styleIndex] = c
 }
 
 func (b *sdl_Resources) GetCursorInsertColour() *sdl.Color {
@@ -114,28 +166,25 @@ func (b *sdl_Resources) SetSelecteCharsRev(s string) {
 func (b *sdl_Resources) GetSelecteCharsRev() string {
 	return string(b.selecteCharsRev)
 }
+
 func (r *sdl_Resources) GetTextureCache() *SDL_TextureCache {
 	return r.textureCache
-}
-
-func (r *sdl_Resources) GetColour(stateIndex STATE_COLOUR, colorIndex STYLE_COLOUR) *sdl.Color {
-	return r.colours[stateIndex][colorIndex]
 }
 
 func (r *sdl_Resources) GetTextureForName(name string) (*sdl.Texture, int32, int32, error) {
 	r.cacheLock.Lock()
 	defer r.cacheLock.Unlock()
-	tce := r.textureCache._textureMap[name]
+	tce := r.textureCache.textureMap[name]
 	if tce == nil {
 		return nil, 0, 0, fmt.Errorf("texture cache does not contain %s", name)
 	}
 	return tce.Texture, tce.W, tce.H, nil
 }
 
-func (r *sdl_Resources) AddTexturesFromStringMap(renderer *sdl.Renderer, textMap map[string]string, font *ttf.Font, colour *sdl.Color) error {
+func (r *sdl_Resources) AddTexturesFromStringMap(renderer *sdl.Renderer, stringMap map[string]string, font *ttf.Font, colour *sdl.Color) error {
 	r.cacheLock.Lock()
 	defer r.cacheLock.Unlock()
-	for name, text := range textMap {
+	for name, text := range stringMap {
 		tce, err := newTextureCacheEntryForString(renderer, text, font, colour)
 		if err != nil {
 			return err
@@ -167,7 +216,7 @@ func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, applicati
 func (r *sdl_Resources) GetTextureListFromCachedRunes(text string, colour *sdl.Color) []*SDL_TextureCacheEntry {
 	list := make([]*SDL_TextureCacheEntry, len(text))
 	for i, c := range text {
-		ec := r.textureCache._textureMap[fmt.Sprintf("|%c%d", c, GetColourId(colour))]
+		ec := r.textureCache.textureMap[fmt.Sprintf("|%c%d", c, GetColourId(colour))]
 		if ec == nil {
 			return nil
 		}
@@ -184,7 +233,7 @@ func (r *sdl_Resources) GetScaledTextureListFromCachedRunesLinked(text string, c
 	ofs := float32(offset)
 
 	for i, c := range text {
-		tce := r.textureCache._textureMap[fmt.Sprintf("|%c%d", c, GetColourId(colour))]
+		tce := r.textureCache.textureMap[fmt.Sprintf("|%c%d", c, GetColourId(colour))]
 		if tce == nil {
 			return rootEnt
 		}
@@ -222,7 +271,7 @@ func (r *sdl_Resources) UpdateTextureCachedRunes(renderer *sdl.Renderer, font *t
 func (r *sdl_Resources) UpdateTextureFromString(renderer *sdl.Renderer, cacheKey, text string, font *ttf.Font, colour *sdl.Color) (*SDL_TextureCacheEntry, error) {
 	r.cacheLock.Lock()
 	defer r.cacheLock.Unlock()
-	gtwe, ok := r.textureCache._textureMap[cacheKey]
+	gtwe, ok := r.textureCache.textureMap[cacheKey]
 	if ok {
 		if gtwe.value == text {
 			return gtwe, nil
@@ -249,12 +298,12 @@ func GetColourId(c *sdl.Color) uint32 {
 *       	defer widgetGroup.Destroy()
 **/
 type SDL_TextureCache struct {
-	_textureMap map[string]*SDL_TextureCacheEntry
-	in, out     int
+	textureMap map[string]*SDL_TextureCacheEntry
+	in, out    int
 }
 
 func NewTextureCache() *SDL_TextureCache {
-	return &SDL_TextureCache{_textureMap: make(map[string]*SDL_TextureCacheEntry), in: 0, out: 0}
+	return &SDL_TextureCache{textureMap: make(map[string]*SDL_TextureCacheEntry), in: 0, out: 0}
 }
 
 func (tc *SDL_TextureCache) String() string {
@@ -262,33 +311,33 @@ func (tc *SDL_TextureCache) String() string {
 }
 
 func (tc *SDL_TextureCache) Peek(name string) bool {
-	_, ok := tc._textureMap[name]
+	_, ok := tc.textureMap[name]
 	return ok
 }
 
 func (tc *SDL_TextureCache) Add(name string, tceIn *SDL_TextureCacheEntry) {
-	tce := tc._textureMap[name]
+	tce := tc.textureMap[name]
 	if tce != nil {
 		tc.out = tc.out + tce.Destroy()
 	}
-	tc._textureMap[name] = tceIn
+	tc.textureMap[name] = tceIn
 	tc.in++
 }
 
 func (tc *SDL_TextureCache) Remove(name string, tceIn *SDL_TextureCacheEntry) {
-	tce := tc._textureMap[name]
+	tce := tc.textureMap[name]
 	if tce != nil {
 		tc.out = tc.out + tce.Destroy()
 	}
-	tc._textureMap[name] = nil
+	tc.textureMap[name] = nil
 }
 
 func (tc *SDL_TextureCache) Destroy() {
-	for n, tce := range tc._textureMap {
+	for n, tce := range tc.textureMap {
 		if tce != nil {
 			tc.out = tc.out + tce.Destroy()
 		}
-		tc._textureMap[n] = nil
+		tc.textureMap[n] = nil
 	}
 }
 

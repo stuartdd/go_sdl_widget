@@ -14,6 +14,9 @@ type SDL_WidgetGroup struct {
 }
 
 func NewWidgetGroup(font *ttf.Font) *SDL_WidgetGroup {
+	if font == nil {
+		font = GetResourceInstance().GetFont()
+	}
 	return &SDL_WidgetGroup{font: font, wigetLists: make([]*SDL_WidgetSubGroup, 0)}
 }
 
@@ -111,7 +114,6 @@ func (wg *SDL_WidgetGroup) Destroy() {
 	for _, w := range wg.wigetLists {
 		w.Destroy()
 	}
-	GetResourceInstance().GetTextureCache().Destroy()
 }
 
 func (wg *SDL_WidgetGroup) Draw(renderer *sdl.Renderer) {

@@ -15,8 +15,6 @@ type KBD_KEY_MODE int
 type ENTRY_EVENT_TYPE int
 type STATE_BITS uint16
 type LOG_LEVEL int
-type STATE_COLOUR int
-type STYLE_COLOUR int
 
 const (
 	LOG_LEVEL_ERROR LOG_LEVEL = iota
@@ -52,17 +50,6 @@ const (
 	WIDGET_STATE_NOT_CLICKED        STATE_BITS = 0b0000000100000000
 	WIDGET_STATE_STA_BITS           STATE_BITS = 0b0000000111110000 // Clear state AND mask. Retains style.
 	WIDGET_STATE_ENA_SET            STATE_BITS = 0b0000000100110000 // Enabled visible and not-clicked
-
-	WIDGET_COLOR_FG     STYLE_COLOUR = 0 // Section indexes
-	WIDGET_COLOR_BG     STYLE_COLOUR = 1
-	WIDGET_COLOR_BORDER STYLE_COLOUR = 2
-	WIDGET_COLOR_ENTRY  STYLE_COLOUR = 3
-	WIDGET_COLOR_MAX    STYLE_COLOUR = 4
-
-	WIDGET_COLOUR_ENABLED STATE_COLOUR = 0
-	WIDGET_COLOUR_DISABLE STATE_COLOUR = 1
-	WIDGET_COLOUR_FOCUS   STATE_COLOUR = 2
-	WIDGET_COLOUR_ERROR   STATE_COLOUR = 3
 
 	DEG_TO_RAD float64 = (math.Pi / 180)
 )
@@ -427,28 +414,28 @@ func (b *SDL_WidgetBase) GetForeground() *sdl.Color {
 	if b.foreground != nil {
 		return b.foreground
 	}
-	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_FG)
+	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOUR_STYLE_FG)
 }
 
 func (b *SDL_WidgetBase) GetBackground() *sdl.Color {
 	if b.background != nil {
 		return b.background
 	}
-	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_BG)
+	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOUR_STYLE_BG)
 }
 
 func (b *SDL_WidgetBase) GetBorderColour() *sdl.Color {
 	if b.borderColour != nil {
 		return b.borderColour
 	}
-	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_BORDER)
+	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOUR_STYLE_BORDER)
 }
 
 func (b *SDL_WidgetBase) GetFocusColour() *sdl.Color {
 	if b.focusColour != nil {
 		return b.focusColour
 	}
-	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOR_ENTRY)
+	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOUR_STYLE_ENTRY)
 }
 
 func (b *SDL_WidgetBase) Inside(x, y int32) (SDL_Widget, bool) {
@@ -611,12 +598,12 @@ func isInsideRect(x, y int32, r *sdl.Rect) bool {
 func getStateColourIndex(state STATE_BITS) STATE_COLOUR {
 	if state&WIDGET_STATE_ENA_SET == WIDGET_STATE_ENA_SET {
 		if state&WIDGET_STATE_NOT_ERROR == 0 {
-			return WIDGET_COLOUR_ERROR
+			return WIDGET_COLOUR_STATE_ERROR
 		}
 		if state&WIDGET_STATE_NOT_FOCUSED == 0 {
-			return WIDGET_COLOUR_FOCUS
+			return WIDGET_COLOUR_STATE_FOCUS
 		}
-		return WIDGET_COLOUR_ENABLED
+		return WIDGET_COLOUR_STATE_ENABLED
 	}
-	return WIDGET_COLOUR_DISABLE
+	return WIDGET_COLOUR_STATE_DISABLE
 }
