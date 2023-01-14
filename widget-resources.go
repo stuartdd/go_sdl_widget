@@ -36,6 +36,11 @@ const (
 	WIDGET_COLOUR_STYLE_BORDER STYLE_COLOUR = 2
 	WIDGET_COLOUR_STYLE_ENTRY  STYLE_COLOUR = 3
 	WIDGET_COLOUR_STYLE_MAX    STYLE_COLOUR = 4
+
+	pixel_BYTE_RED   = 0
+	pixel_BYTE_GREEN = 1
+	pixel_BYTE_BLUE  = 2
+	pixel_BYTE_ALPHA = 3
 )
 
 var sdlResourceInstanceLock = &sync.Mutex{}
@@ -61,8 +66,8 @@ func GetResourceInstance() *sdl_Resources {
 			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ENABLED][WIDGET_COLOUR_STYLE_BORDER] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_ENABLED][WIDGET_COLOUR_STYLE_ENTRY] = &sdl.Color{R: 0, G: 0, B: 255, A: 255}
 
-			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_FG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
-			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_BG] = &sdl.Color{R: 0, G: 50, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_FG] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
+			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_BG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_BORDER] = &sdl.Color{R: 0, G: 150, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_STATE_DISABLE][WIDGET_COLOUR_STYLE_ENTRY] = &sdl.Color{R: 0, G: 0, B: 150, A: 255}
 
@@ -132,6 +137,9 @@ func (r *sdl_Resources) SetColour(stateIndex STATE_COLOUR, styleIndex STYLE_COLO
 }
 
 func (b *sdl_Resources) GetCursorInsertColour() *sdl.Color {
+	if b.cursorInsertColour == nil {
+		return &sdl.Color{R: 255, G: 255, B: 255, A: 255}
+	}
 	return b.cursorInsertColour
 }
 
@@ -140,6 +148,9 @@ func (b *sdl_Resources) SetCursorInsertColour(c *sdl.Color) {
 }
 
 func (b *sdl_Resources) GetCursorAppendColour() *sdl.Color {
+	if b.cursorAppendColour == nil {
+		return &sdl.Color{R: 0, G: 255, B: 255, A: 255}
+	}
 	return b.cursorAppendColour
 }
 
@@ -178,7 +189,7 @@ func (r *sdl_Resources) GetTextureForName(name string) (*sdl.Texture, int32, int
 	if tce == nil {
 		return nil, 0, 0, fmt.Errorf("texture cache does not contain %s", name)
 	}
-	return tce.Texture, tce.W, tce.H, nil
+	return tce.texture, tce.w, tce.h, nil
 }
 
 func (r *sdl_Resources) AddTexturesFromStringMap(renderer *sdl.Renderer, stringMap map[string]string, font *ttf.Font, colour *sdl.Color) error {
@@ -194,7 +205,7 @@ func (r *sdl_Resources) AddTexturesFromStringMap(renderer *sdl.Renderer, stringM
 	return nil
 }
 
-func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, applicationDataPath string, fileNames map[string]string) error {
+func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, applicationDataPath string, fileNames map[string]string, colours ...*sdl.Color) error {
 	r.cacheLock.Lock()
 	defer r.cacheLock.Unlock()
 	for name, fileName := range fileNames {
@@ -204,7 +215,7 @@ func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, applicati
 		} else {
 			fn = filepath.Join(applicationDataPath, fileName)
 		}
-		tce, err := newTextureCacheEntryForFile(renderer, fn)
+		tce, err := newTextureCacheEntryForFile(renderer, fn, colours...)
 		if err != nil {
 			return fmt.Errorf("file '%s':%s", fileName, err.Error())
 		}
@@ -237,7 +248,7 @@ func (r *sdl_Resources) GetScaledTextureListFromCachedRunesLinked(text string, c
 		if tce == nil {
 			return rootEnt
 		}
-		sw = float32(height) * (float32(tce.W) / float32(tce.H))
+		sw = float32(height) * (float32(tce.w) / float32(tce.h))
 		nextEnt = &sdl_TextureCacheEntryRune{pos: i, te: tce, offset: int32(ofs), width: int32(sw), next: nil}
 		if rootEnt == nil {
 			rootEnt = nextEnt
@@ -281,8 +292,12 @@ func (r *sdl_Resources) UpdateTextureFromString(renderer *sdl.Renderer, cacheKey
 	if err != nil {
 		return nil, err
 	}
-	r.textureCache.Add(cacheKey, ctwe)
-	return ctwe, nil
+	if gtwe == nil {
+		r.textureCache.Add(cacheKey, ctwe)
+		return ctwe, nil
+	}
+	gtwe.Update(ctwe)
+	return gtwe, nil
 }
 
 func GetColourId(c *sdl.Color) uint32 {
@@ -345,38 +360,64 @@ func (tc *SDL_TextureCache) Destroy() {
 * Texture cache Entry used to hold ALL textures in the SDL_TextureCache
 **/
 type SDL_TextureCacheEntry struct {
-	Texture *sdl.Texture
+	texture *sdl.Texture
 	value   string
-	W, H    int32
+	w, h    int32
 }
 
 func (tce *SDL_TextureCacheEntry) Destroy() int {
-	if tce.Texture != nil {
-		tce.Texture.Destroy()
-		tce.value = ""
+	if tce.texture != nil {
+		tce.texture.Destroy()
 		return 1
 	}
 	return 0
 }
 
-func (tce *SDL_TextureCacheEntry) ScaledWidthHeight(txtH, clientW int32) (int32, int32, int32) {
-	w1 := int32(float32(tce.W) * (float32(txtH) / float32(tce.H)))
-	if clientW <= w1 {
-		return int32(float32(tce.W) * (float32(clientW) / float32(w1))), w1, txtH
-	}
-	return tce.W, w1, txtH
+func (tce *SDL_TextureCacheEntry) Update(with *SDL_TextureCacheEntry) {
+	tce.Destroy()
+	tce.texture = with.texture
+	tce.w = with.w
+	tce.h = with.h
+	tce.value = with.value
 }
 
-func newTextureCacheEntryForFile(renderer *sdl.Renderer, fileName string) (*SDL_TextureCacheEntry, error) {
-	texture, err := img.LoadTexture(renderer, fileName)
+func (tce *SDL_TextureCacheEntry) ScaledWidthHeight(txtH, clientW int32) (int32, int32, int32) {
+	w1 := int32(float32(tce.w) * (float32(txtH) / float32(tce.h)))
+	if clientW <= w1 {
+		return int32(float32(tce.w) * (float32(clientW) / float32(w1))), w1, txtH
+	}
+	return tce.w, w1, txtH
+}
+
+func newTextureCacheEntryForFile(renderer *sdl.Renderer, fileName string, colours ...*sdl.Color) (*SDL_TextureCacheEntry, error) {
+	surface, err := img.Load(fileName)
 	if err != nil {
 		return nil, err
 	}
-	_, _, t3, t4, err := texture.Query()
+	defer surface.Free()
+	if len(colours) > 0 {
+		if len(colours)%2 == 1 {
+			colours = append(colours, sdlResourceInstance.GetColour(WIDGET_COLOUR_STATE_ENABLED, WIDGET_COLOUR_STYLE_FG))
+		}
+		surface.Lock()
+		pixels := surface.Pixels()
+		bpp := surface.BytesPerPixel()
+		if bpp != 4 {
+			return nil, fmt.Errorf("bytes per pixel for image '%s' must be 4", fileName)
+		}
+		for i := 0; i < len(colours); i = i + 2 {
+			updateSurfacePixels(pixels, bpp, colours[i+0], colours[i+1])
+		}
+
+		surface.Unlock()
+	}
+	clip := surface.ClipRect
+	// Dont destroy the texture. Call Destroy on the SDL_Widgets object to destroy ALL cached textures
+	txt, err := renderer.CreateTextureFromSurface(surface)
 	if err != nil {
 		return nil, err
 	}
-	return &SDL_TextureCacheEntry{Texture: texture, W: t3, H: t4, value: fileName}, nil
+	return &SDL_TextureCacheEntry{texture: txt, value: fileName, w: clip.W, h: clip.H}, nil
 }
 
 func newTextureCacheEntryForRune(renderer *sdl.Renderer, char rune, font *ttf.Font, colour *sdl.Color) (*SDL_TextureCacheEntry, error) {
@@ -395,7 +436,7 @@ func newTextureCacheEntryForRune(renderer *sdl.Renderer, char rune, font *ttf.Fo
 	if err != nil {
 		return nil, err
 	}
-	return &SDL_TextureCacheEntry{Texture: txt, value: string(char), W: clip.W, H: clip.H}, nil
+	return &SDL_TextureCacheEntry{texture: txt, value: string(char), w: clip.W, h: clip.H}, nil
 }
 
 func newTextureCacheEntryForString(renderer *sdl.Renderer, text string, font *ttf.Font, colour *sdl.Color) (*SDL_TextureCacheEntry, error) {
@@ -413,7 +454,26 @@ func newTextureCacheEntryForString(renderer *sdl.Renderer, text string, font *tt
 	if err != nil {
 		return nil, err
 	}
-	return &SDL_TextureCacheEntry{Texture: txt, W: clip.W, H: clip.H, value: text}, nil
+	return &SDL_TextureCacheEntry{texture: txt, w: clip.W, h: clip.H, value: text}, nil
+}
+
+func updateSurfacePixels(pixels []byte, bpp int, frm, too *sdl.Color) {
+	pc := len(pixels)
+	b1 := frm.B
+	g1 := frm.G
+	r1 := frm.R
+	b2 := too.B
+	g2 := too.G
+	r2 := too.R
+	a2 := too.A
+	for p := 0; p < pc; p = p + bpp {
+		if pixels[p+pixel_BYTE_BLUE] == b1 && pixels[p+pixel_BYTE_GREEN] == g1 && pixels[p+pixel_BYTE_RED] == r1 {
+			pixels[p+pixel_BYTE_BLUE] = b2
+			pixels[p+pixel_BYTE_GREEN] = g2
+			pixels[p+pixel_BYTE_RED] = r2
+			pixels[p+pixel_BYTE_ALPHA] = a2
+		}
+	}
 }
 
 /****************************************************************************************

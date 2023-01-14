@@ -526,7 +526,7 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 				renderer.SetDrawColor(100, 100, 100, 25)
 				renderer.FillRect(rect)
 			}
-			renderer.Copy(disp.te.Texture, nil, rect)
+			renderer.Copy(disp.te.texture, nil, rect)
 			if !b.cursorAtEnd && paintCursor && disp.pos == b.cursor {
 				c := GetResourceInstance().GetCursorInsertColour()
 				renderer.SetDrawColor(c.R, c.G, c.B, c.A)
