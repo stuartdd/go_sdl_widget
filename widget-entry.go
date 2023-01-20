@@ -44,8 +44,8 @@ var _ SDL_CanSelectText = (*SDL_Entry)(nil) // Ensure SDL_Button 'is a' SDL_Widg
 func NewSDLEntry(x, y, w, h, id int32, text string, style STATE_BITS, onChange func(string, string, ENTRY_EVENT_TYPE) (string, error)) *SDL_Entry {
 	ent := &SDL_Entry{text: text, textLen: len(text), cursor: 0, cursorTimer: 0, leadin: 0, leadout: 0, ctrlKeyDown: false, _invalid: true, indent: 10, onChange: onChange}
 	ent.ClearSelection()
-	ent.SetSelecteCharsFwd(GetResourceInstance().GetSelecteCharsFwd())
-	ent.SetSelecteCharsRev(GetResourceInstance().GetSelecteCharsRev())
+	ent.SetSelecteCharsFwd(GetResourceInstance().GetSelectCharsFwd())
+	ent.SetSelecteCharsRev(GetResourceInstance().GetSelectCharsRev())
 	ent.SDL_WidgetBase = initBase(x, y, w, h, id, ent, 0, true, style, nil)
 	return ent
 }
@@ -456,13 +456,14 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 
 		if b._invalid {
 			b.Invalid(false)
-			err = GetResourceInstance().UpdateTextureCachedRunes(renderer, font, b.GetForeground(), b.text)
+			fg := b.GetForeground()
+			err = GetResourceInstance().UpdateTextureCachedRunes(renderer, font, fg, b.text)
 			if err != nil {
 				renderer.SetDrawColor(255, 0, 0, 255)
 				renderer.DrawRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 				return nil
 			}
-			sd := GetResourceInstance().GetScaledTextureListFromCachedRunesLinked(b.text, b.GetForeground(), tx, th)
+			sd := GetResourceInstance().GetScaledTextureListFromCachedRunesLinked(b.text, fg, tx, th)
 			if sd == nil {
 				if err != nil {
 					renderer.SetDrawColor(255, 0, 0, 255)
@@ -495,25 +496,27 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			renderer.SetDrawColor(bc.R, bc.G, bc.B, bc.A)
 			renderer.FillRect(&sdl.Rect{X: b.x, Y: b.y, W: b.w, H: b.h})
 		}
+		//
+		// If selectiing with the mouse then draw the background
+		//
 		if b.dragging && b.IsFocused() {
-			renderer.SetDrawColor(100, 100, 0, 25)
+			c := GetResourceInstance().GetCursorSelectColour()
+			renderer.SetDrawColor(c.R, c.G, c.B, c.A)
 			if b.dragFrom > b.dragTo {
 				renderer.FillRect(&sdl.Rect{X: b.dragTo, Y: b.y + 1, W: b.dragFrom - b.dragTo, H: b.h - 2})
 			} else {
 				renderer.FillRect(&sdl.Rect{X: b.dragFrom, Y: b.y + 1, W: b.dragTo - b.dragFrom, H: b.h - 2})
 			}
 		}
+
+		paintCursor := b.IsEnabled() && b.IsFocused() && (sdl.GetTicks64()%1000) > 300
+
 		//
 		// Scale the text to fit the height but keep the aspect ration the same so we know the width of each char
 		//   Need to use floats to prevent rounding
 		//
-
-		paintCursor := b.IsEnabled() && b.IsFocused() && (sdl.GetTicks64()%1000) > 300
-
 		var rect *sdl.Rect
-
 		tx = b.x + b.indent
-
 		max := b.x + b.w
 		last := 0
 		disp := leadIn
@@ -523,7 +526,8 @@ func (b *SDL_Entry) Draw(renderer *sdl.Renderer, font *ttf.Font) error {
 			rect = &sdl.Rect{X: tx, Y: b.y + ty, W: tw, H: th}
 			disp.SetVisible(true)
 			if disp.pos >= b.selectCharFrom && disp.pos <= b.selectCharToo {
-				renderer.SetDrawColor(100, 100, 100, 25)
+				c := GetResourceInstance().GetCursorSelectColour()
+				renderer.SetDrawColor(c.R, c.G, c.B, c.A)
 				renderer.FillRect(rect)
 			}
 			renderer.Copy(disp.te.texture, nil, rect)

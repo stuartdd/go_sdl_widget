@@ -5,7 +5,7 @@ import (
 )
 
 func TestSubGroups(t *testing.T) {
-	sub := NewWidgetSubGroup(0, 0, 0, 0, 666, nil, WIDGET_STYLE_NONE)
+	sub := NewWidgetSubGroup(0, 0, 0, 0, 666, nil, WIDGET_STYLE_DRAW_NONE)
 	if sub.countBase != 0 {
 		t.Error("Count should be zero")
 	}
@@ -84,7 +84,7 @@ func TestSubGroups(t *testing.T) {
 		t.Errorf("id 999 y should be 5 not %d", y)
 	}
 
-	sub2 := NewWidgetSubGroup(0, 0, 0, 0, 3, nil, WIDGET_STYLE_NONE)
+	sub2 := NewWidgetSubGroup(0, 0, 0, 0, 3, nil, WIDGET_STYLE_DRAW_NONE)
 	sub2.Add(sub)
 
 }

@@ -43,13 +43,15 @@ const (
 	WIDGET_STYLE_DRAW_BORDER        STATE_BITS = 0b0000000000000010
 	WIDGET_STYLE_DRAW_BG            STATE_BITS = 0b0000000000001000
 	WIDGET_STYLE_DRAW_BORDER_AND_BG STATE_BITS = WIDGET_STYLE_DRAW_BORDER | WIDGET_STYLE_DRAW_BG
-	WIDGET_STATE_ENABLED            STATE_BITS = 0b0000000000010000
-	WIDGET_STATE_VISIBLE            STATE_BITS = 0b0000000000100000
-	WIDGET_STATE_NOT_FOCUSED        STATE_BITS = 0b0000000001000000
-	WIDGET_STATE_NOT_ERROR          STATE_BITS = 0b0000000010000000
-	WIDGET_STATE_NOT_CLICKED        STATE_BITS = 0b0000000100000000
-	WIDGET_STATE_STA_BITS           STATE_BITS = 0b0000000111110000 // Clear state AND mask. Retains style.
-	WIDGET_STATE_ENA_SET            STATE_BITS = 0b0000000100110000 // Enabled visible and not-clicked
+	WIDGET_STYLE_MASK               STATE_BITS = 0b0000000000001111
+
+	WIDGET_STATE_ENABLED     STATE_BITS = 0b0000000000010000
+	WIDGET_STATE_VISIBLE     STATE_BITS = 0b0000000000100000
+	WIDGET_STATE_NOT_FOCUSED STATE_BITS = 0b0000000001000000
+	WIDGET_STATE_NOT_ERROR   STATE_BITS = 0b0000000010000000
+	WIDGET_STATE_NOT_CLICKED STATE_BITS = 0b0000000100000000
+	WIDGET_STATE_ENA_SET     STATE_BITS = 0b0000000100110000 // Enabled, visible, and not-clicked
+	WIDGET_STATE_MASK        STATE_BITS = 0b0000000111110000 // Clear state AND mask. Retains style.
 
 	DEG_TO_RAD float64 = (math.Pi / 180)
 )
@@ -59,46 +61,50 @@ var TEXTURE_CACHE_TEXT_PREF = "TxCaPr987"
 type SDL_Widget interface {
 	Draw(*sdl.Renderer, *ttf.Font) error
 	Scale(float32)
+	Inside(int32, int32) (SDL_Widget, bool) // Base
 	Click(*SDL_MouseData) bool
 	SetOnClick(func(string, int32, int32, int32) bool) // Base
-	Inside(int32, int32) (SDL_Widget, bool)            // Base
-	GetRect() *sdl.Rect                                // Base
-	SetRect(*sdl.Rect)                                 // Base
-	SetWidgetId(int32)                                 // Base
-	GetWidgetId() int32                                // Base
-	SetVisible(bool)                                   // Base
-	IsVisible() bool                                   // Base
-	SetClicked(bool)                                   // Base
-	IsClicked() bool                                   // Base
-	SetEnabled(bool)                                   // Base
-	IsEnabled() bool                                   // Base
-	SetError(bool)                                     // Base
-	IsError() bool                                     // Base
-	SetPosition(int32, int32) bool                     // Base
-	SetPositionRel(int32, int32) bool                  // Base
-	GetPosition() (int32, int32)                       // Base
-	SetSize(int32, int32) bool                         // Base
-	GetSize() (int32, int32)                           // Base
-	GetForeground() *sdl.Color                         // Base
-	GetBackground() *sdl.Color                         // Base
-	GetBorderColour() *sdl.Color                       // Base
-	SetForeground(*sdl.Color)                          // Base
-	SetBackground(*sdl.Color)                          // Base
-	SetBorderColour(*sdl.Color)                        // Base
-	SetDrawBackground(bool)                            // Base
-	ShouldDrawBackground() bool                        // Base
-	SetDrawBorder(bool)                                // Base
-	ShouldDrawBorder() bool                            // Base
-	Destroy()                                          // Base
+	KeyPress(c int, ctrl, down bool) bool
+	SetWidgetId(int32)  // Base
+	GetWidgetId() int32 // Base
+	Destroy()           // Base
+
+	GetForeground() *sdl.Color   // Base
+	GetBackground() *sdl.Color   // Base
+	GetBorderColour() *sdl.Color // Base
+	SetForeground(*sdl.Color)    // Base
+	SetBackground(*sdl.Color)    // Base
+	SetBorderColour(*sdl.Color)  // Base
+
+	GetRect() *sdl.Rect               // Base
+	SetRect(*sdl.Rect)                // Base
+	SetPosition(int32, int32) bool    // Base
+	SetPositionRel(int32, int32) bool // Base
+	GetPosition() (int32, int32)      // Base
+	SetSize(int32, int32) bool        // Base
+	GetSize() (int32, int32)          // Base
+
+	SetDrawBackground(bool)     // Base
+	ShouldDrawBackground() bool // Base
+	SetDrawBorder(bool)         // Base
+	ShouldDrawBorder() bool     // Base
+
+	SetVisible(bool) // Base
+	IsVisible() bool // Base
+	SetClicked(bool) // Base
+	IsClicked() bool // Base
+	SetEnabled(bool) // Base
+	IsEnabled() bool // Base
+	SetError(bool)   // Base
+	IsError() bool   // Base
+	SetFocused(bool) // Base
+	IsFocused() bool // Base
+	CanFocus() bool
+
 	SetLog(func(LOG_LEVEL, string))
 	Log(LOG_LEVEL, string)
 	CanLog() bool
-	CanFocus() bool
-	KeyPress(c int, ctrl, down bool) bool
-	SetFocused(bool)            // Base
-	IsFocused() bool            // Base
-	GetFocusColour() *sdl.Color // Base
-	SetFocusColour(*sdl.Color)  // Base
+
 	String() string
 }
 
@@ -144,7 +150,6 @@ type SDL_WidgetBase struct {
 	background   *sdl.Color
 	foreground   *sdl.Color
 	borderColour *sdl.Color
-	focusColour  *sdl.Color
 	state        STATE_BITS
 	canfocus     bool
 	log          func(LOG_LEVEL, string)
@@ -167,8 +172,7 @@ func initBase(x, y, w, h, widgetId int32, instance SDL_Widget, deBounce int, can
 		background:   nil,
 		foreground:   nil,
 		borderColour: nil,
-		focusColour:  nil,
-		state:        style | WIDGET_STATE_STA_BITS, // Clear state bits and set enabled, visible and notpressed. Leave style unchanged
+		state:        style | WIDGET_STATE_MASK, // Clear state bits and set enabled, visible and notpressed. Leave style unchanged
 	}
 }
 
@@ -370,22 +374,6 @@ func (b *SDL_WidgetBase) GetDebounce() int {
 	return b.deBounce
 }
 
-func (b *SDL_WidgetBase) SetForeground(c *sdl.Color) {
-	b.foreground = c
-}
-
-func (b *SDL_WidgetBase) SetBackground(c *sdl.Color) {
-	b.background = c
-}
-
-func (b *SDL_WidgetBase) SetBorderColour(c *sdl.Color) {
-	b.borderColour = c
-}
-
-func (b *SDL_WidgetBase) SetFocusColour(c *sdl.Color) {
-	b.focusColour = c
-}
-
 func (b *SDL_WidgetBase) SetDrawBackground(e bool) {
 	if e {
 		b.state = b.state | WIDGET_STYLE_DRAW_BG
@@ -410,32 +398,50 @@ func (b *SDL_WidgetBase) ShouldDrawBorder() bool {
 	return (b.state & WIDGET_STYLE_DRAW_BORDER) == WIDGET_STYLE_DRAW_BORDER
 }
 
+func (b *SDL_WidgetBase) SetForeground(c *sdl.Color) {
+	b.foreground = c
+}
+
+func (b *SDL_WidgetBase) SetBackground(c *sdl.Color) {
+	b.background = c
+}
+
+func (b *SDL_WidgetBase) SetBorderColour(c *sdl.Color) {
+	b.borderColour = c
+}
+
+func (b *SDL_WidgetBase) getResourceColourStateIndex() STATE_COLOUR {
+	if b.IsEnabled() {
+		if b.IsError() {
+			return WIDGET_COLOUR_INDEX_ERROR
+		}
+		if b.IsFocused() {
+			return WIDGET_COLOUR_INDEX_FOCUS
+		}
+		return WIDGET_COLOUR_INDEX_ENABLED
+	}
+	return WIDGET_COLOUR_INDEX_DISABLE
+}
+
 func (b *SDL_WidgetBase) GetForeground() *sdl.Color {
 	if b.foreground != nil {
 		return b.foreground
 	}
-	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOUR_STYLE_FG)
+	return GetResourceInstance().GetColour(b.getResourceColourStateIndex(), WIDGET_COLOUR_STYLE_FG)
 }
 
 func (b *SDL_WidgetBase) GetBackground() *sdl.Color {
 	if b.background != nil {
 		return b.background
 	}
-	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOUR_STYLE_BG)
+	return GetResourceInstance().GetColour(b.getResourceColourStateIndex(), WIDGET_COLOUR_STYLE_BG)
 }
 
 func (b *SDL_WidgetBase) GetBorderColour() *sdl.Color {
 	if b.borderColour != nil {
 		return b.borderColour
 	}
-	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOUR_STYLE_BORDER)
-}
-
-func (b *SDL_WidgetBase) GetFocusColour() *sdl.Color {
-	if b.focusColour != nil {
-		return b.focusColour
-	}
-	return GetResourceInstance().GetColour(getStateColourIndex(b.state), WIDGET_COLOUR_STYLE_ENTRY)
+	return GetResourceInstance().GetColour(b.getResourceColourStateIndex(), WIDGET_COLOUR_STYLE_BORDER)
 }
 
 func (b *SDL_WidgetBase) Inside(x, y int32) (SDL_Widget, bool) {
@@ -593,17 +599,4 @@ func isInsideRect(x, y int32, r *sdl.Rect) bool {
 		return false
 	}
 	return true
-}
-
-func getStateColourIndex(state STATE_BITS) STATE_COLOUR {
-	if state&WIDGET_STATE_ENA_SET == WIDGET_STATE_ENA_SET {
-		if state&WIDGET_STATE_NOT_ERROR == 0 {
-			return WIDGET_COLOUR_STATE_ERROR
-		}
-		if state&WIDGET_STATE_NOT_FOCUSED == 0 {
-			return WIDGET_COLOUR_STATE_FOCUS
-		}
-		return WIDGET_COLOUR_STATE_ENABLED
-	}
-	return WIDGET_COLOUR_STATE_DISABLE
 }
