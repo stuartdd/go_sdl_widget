@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,10 +16,14 @@ import (
 )
 
 type sdl_Resources struct {
+	resourceDir        string
+	fontFilename       string
+	fontSize           int
 	font               *ttf.Font
 	textureCache       *SDL_TextureCache
 	cacheLock          sync.Mutex
 	colours            [][]*sdl.Color
+	colourNames        map[string]*sdl.Color
 	cursorInsertColour *sdl.Color
 	cursorAppendColour *sdl.Color
 	cursorSelectColour *sdl.Color
@@ -71,6 +76,7 @@ func GetResourceInstance() *sdl_Resources {
 		defer sdlResourceInstanceLock.Unlock()
 
 		if sdlResourceInstance == nil {
+
 			sdlResourceInstance = &sdl_Resources{
 				textureCache: NewTextureCache(),
 				colours:      make([][]*sdl.Color, WIDGET_COLOUR_INDEX_SIZE),
@@ -79,6 +85,7 @@ func GetResourceInstance() *sdl_Resources {
 			for sci = 0; sci < STATE_COLOUR(WIDGET_COLOUR_INDEX_SIZE); sci++ {
 				sdlResourceInstance.colours[sci] = make([]*sdl.Color, WIDGET_COLOUR_STYLE_SIZE)
 			}
+			sdlResourceInstance.colourNames = make(map[string]*sdl.Color)
 
 			sdlResourceInstance.colours[WIDGET_COLOUR_INDEX_ENABLED][WIDGET_COLOUR_STYLE_FG] = &sdl.Color{R: 0, G: 255, B: 0, A: 255}
 			sdlResourceInstance.colours[WIDGET_COLOUR_INDEX_ENABLED][WIDGET_COLOUR_STYLE_BG] = &sdl.Color{R: 0, G: 100, B: 0, A: 255}
@@ -102,6 +109,14 @@ func GetResourceInstance() *sdl_Resources {
 
 			sdlResourceInstance.SetSelectCharsFwd("/.")
 			sdlResourceInstance.SetSelectCharsRev("/")
+			p, err := os.Getwd()
+			if err != nil {
+				sdlResourceInstance.resourceDir = "resources"
+			} else {
+				sdlResourceInstance.resourceDir = path.Join(p, "resources")
+			}
+			sdlResourceInstance.fontFilename = path.Join(sdlResourceInstance.resourceDir, "buttonFont.ttf")
+			sdlResourceInstance.fontSize = 35
 		}
 	}
 
@@ -124,10 +139,10 @@ func (r *sdl_Resources) Config(filename string) error {
 			if len(l) == 2 {
 				err := r.ConfigNameValue(l[0], l[1])
 				if err != nil {
-					return fmt.Errorf("line:'%s'. %s. File %s", s, err.Error(), filename)
+					return fmt.Errorf("line:'%s'. %s. Config File is '%s'", s, err.Error(), filename)
 				}
 			} else {
-				return fmt.Errorf("config file line is invalid '%s'. File %s", s, filename)
+				return fmt.Errorf("config file line is invalid '%s'. Config File is '%s'", s, filename)
 			}
 		}
 	}
@@ -139,7 +154,6 @@ func (r *sdl_Resources) ConfigNameValue(n, v string) error {
 	if len(n) > 0 {
 		v = strings.TrimSpace(v)
 		n = strings.TrimSpace(n)
-		n = strings.ToLower(n)
 		nl := strings.Split(n, ".")
 		if len(nl) > 2 && nl[0] == "res" {
 			err := r.setConfigValue(nl[1:], v)
@@ -154,15 +168,51 @@ func (r *sdl_Resources) ConfigNameValue(n, v string) error {
 }
 
 func (r *sdl_Resources) setConfigValue(n []string, v string) error {
-	i1, ok := configMapState[n[0]]
+	n0 := strings.ToLower(n[0])
+	n1 := strings.ToLower(n[1])
+
+	i1, ok := configMapState[n0]
 	if !ok {
-		switch n[0] {
+		switch n0 {
+		case "font":
+			switch n1 {
+			case "name":
+				err := r.SetFontFilename(v)
+				return err
+			case "size":
+				si, err := strconv.Atoi(v)
+				if err != nil {
+					return err
+				}
+				err = r.SetFontSize(si)
+				return err
+			default:
+				return fmt.Errorf("invalid name. Expecting 'font.name, font.size' Found '%s'", n)
+			}
+		case "resource":
+			switch n1 {
+			case "dir":
+				err := r.SetResourceDir(v)
+				return err
+			default:
+				return fmt.Errorf("invalid name. Expecting 'resource.dir' Found '%s'", n)
+			}
+		case "colour", "color":
+			c, err := parseColourString(v)
+			if err != nil {
+				return err
+			}
+			err = r.SetColourName(n[1], c)
+			if err != nil {
+				return err
+			}
+			return nil
 		case "cursor":
 			c, err := parseColourString(v)
 			if err != nil {
 				return err
 			}
-			switch n[1] {
+			switch n1 {
 			case "insert":
 				r.SetCursorInsertColour(c)
 				return nil
@@ -179,7 +229,7 @@ func (r *sdl_Resources) setConfigValue(n []string, v string) error {
 			if len(v) < 1 {
 				return fmt.Errorf("invalid value. Expecting string longer than 1 char")
 			}
-			switch n[1] {
+			switch n1 {
 			case "forward":
 				r.SetSelectCharsFwd(v)
 				return nil
@@ -190,12 +240,12 @@ func (r *sdl_Resources) setConfigValue(n []string, v string) error {
 				return fmt.Errorf("invalid name. Expecting 'select.forward, select.backward' Found '%s'", n)
 			}
 		default:
-			return fmt.Errorf("invalid name. Expecting a name from %v or 'cursor or select' Found '%s'", configMapState, n[0])
+			return fmt.Errorf("invalid name. Expecting a name from %v or 'cursor or select' Found '%s'", configMapState, n0)
 		}
 	}
-	i2, ok := configMapStyle[n[1]]
+	i2, ok := configMapStyle[n1]
 	if !ok {
-		return fmt.Errorf("config name. Expecting styles name from %v Found '%s'", configMapStyle, n[1])
+		return fmt.Errorf("config name. Expecting styles name from %v Found '%s'", configMapStyle, n1)
 	}
 	c, err := parseColourString(v)
 	if err != nil {
@@ -213,20 +263,27 @@ func (r *sdl_Resources) Destroy() {
 	r.GetTextureCache().Destroy()
 }
 
-func (r *sdl_Resources) LoadFont(fontFile string, fontSize int) (*ttf.Font, error) {
+func (r *sdl_Resources) LoadFont() error {
+	info, err := os.Stat(r.fontFilename)
+	if err != nil {
+		return fmt.Errorf("failed to load Font '%s'. Error: %s", r.fontFilename, err.Error())
+	}
+	if info.IsDir() {
+		return fmt.Errorf("failed to load Font. Path '%s' is a directory", r.fontFilename)
+	}
 	if r.font == nil {
 		if err := ttf.Init(); err != nil {
-			return nil, fmt.Errorf("failed to init the ttf font system: %s", err)
+			return fmt.Errorf("failed to init the ttf font system: %s", err)
 		}
 	}
-	font, err := ttf.OpenFont(fontFile, fontSize)
+	font, err := ttf.OpenFont(r.fontFilename, r.fontSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load the font from file: %s", err)
+		return fmt.Errorf("failed to load the font from file: %s", err)
 	}
 	if r.font == nil {
 		r.font = font
 	}
-	return font, nil
+	return nil
 }
 
 func (r *sdl_Resources) GetColour(stateIndex STATE_COLOUR, styleIndex STYLE_COLOUR) *sdl.Color {
@@ -237,37 +294,110 @@ func (r *sdl_Resources) SetColour(stateIndex STATE_COLOUR, styleIndex STYLE_COLO
 	r.colours[stateIndex][styleIndex] = c
 }
 
-func (b *sdl_Resources) GetCursorInsertColour() *sdl.Color {
-	if b.cursorInsertColour == nil {
+func (r *sdl_Resources) SetColourName(name string, c *sdl.Color) error {
+	if len(name) < 2 {
+		return fmt.Errorf("failed to set colour name. Name '%s' must be longer than 1 char", name)
+	}
+	r.colourNames[name] = c
+	return nil
+}
+
+func (r *sdl_Resources) GetColourName(name string, stateIndex STATE_COLOUR, styleIndex STYLE_COLOUR) *sdl.Color {
+	c, ok := r.colourNames[name]
+	if ok {
+		return c
+	}
+	return r.GetColour(stateIndex, styleIndex)
+}
+
+func (r *sdl_Resources) GetCursorInsertColour() *sdl.Color {
+	if r.cursorInsertColour == nil {
 		return &sdl.Color{R: 255, G: 255, B: 255, A: 255}
 	}
-	return b.cursorInsertColour
+	return r.cursorInsertColour
 }
 
-func (b *sdl_Resources) GetCursorAppendColour() *sdl.Color {
-	if b.cursorAppendColour == nil {
+func (r *sdl_Resources) GetCursorAppendColour() *sdl.Color {
+	if r.cursorAppendColour == nil {
 		return &sdl.Color{R: 0, G: 255, B: 255, A: 255}
 	}
-	return b.cursorAppendColour
+	return r.cursorAppendColour
 }
 
-func (b *sdl_Resources) GetCursorSelectColour() *sdl.Color {
-	if b.cursorSelectColour == nil {
+func (r *sdl_Resources) GetCursorSelectColour() *sdl.Color {
+	if r.cursorSelectColour == nil {
 		return &sdl.Color{R: 100, G: 0, B: 100, A: 255}
 	}
-	return b.cursorSelectColour
+	return r.cursorSelectColour
 }
 
-func (b *sdl_Resources) SetCursorInsertColour(c *sdl.Color) {
-	b.cursorInsertColour = c
+func (r *sdl_Resources) SetCursorInsertColour(c *sdl.Color) {
+	r.cursorInsertColour = c
 }
 
-func (b *sdl_Resources) SetCursorAppendColour(c *sdl.Color) {
-	b.cursorAppendColour = c
+func (r *sdl_Resources) SetCursorAppendColour(c *sdl.Color) {
+	r.cursorAppendColour = c
 }
 
-func (b *sdl_Resources) SetCursorSelectColour(c *sdl.Color) {
-	b.cursorSelectColour = c
+func (r *sdl_Resources) SetCursorSelectColour(c *sdl.Color) {
+	r.cursorSelectColour = c
+}
+
+func (r *sdl_Resources) SetResourceDir(dir string) error {
+	info, err := os.Stat(dir)
+	if err != nil {
+		p, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to set Resource Directrory. Path was '%s'. Error: %s", dir, err.Error())
+		}
+		dir = path.Join(p, dir)
+		info, err = os.Stat(dir)
+		if err != nil {
+			return fmt.Errorf("failed to set Resource Directrory. Derived Path was '%s'. Error: %s", dir, err.Error())
+		}
+	}
+	if info.IsDir() {
+		r.resourceDir = dir
+		return nil
+	}
+	return fmt.Errorf("failed to set Resource Directrory. Path '%s' is NOT a directory", dir)
+}
+
+func (r *sdl_Resources) GetResourceDir() string {
+	return r.resourceDir
+}
+
+func (r *sdl_Resources) SetFontFilename(filename string) error {
+	info, err := os.Stat(filename)
+	if err != nil {
+		fn := path.Join(r.resourceDir, filename)
+		info, err = os.Stat(fn)
+		if err != nil {
+			return fmt.Errorf("failed to set Font File Name. Derived File was '%s'. Error: %s", fn, err.Error())
+		}
+		filename = fn
+	}
+	if !info.IsDir() {
+		r.fontFilename = filename
+		return nil
+	}
+	return fmt.Errorf("failed to set Font File Name. File '%s' is a directory", filename)
+}
+
+func (r *sdl_Resources) GetFontFilename() string {
+	return r.fontFilename
+}
+
+func (r *sdl_Resources) GetFontSize() int {
+	return r.fontSize
+}
+
+func (r *sdl_Resources) SetFontSize(size int) error {
+	if size < 10 {
+		return fmt.Errorf("failed to set Font Size. Must be 10 or above. Was set to '%d'", size)
+	}
+	r.fontSize = size
+	return nil
 }
 
 func (r *sdl_Resources) GetFont() *ttf.Font {
@@ -317,16 +447,11 @@ func (r *sdl_Resources) AddTexturesFromStringMap(renderer *sdl.Renderer, stringM
 	return nil
 }
 
-func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, applicationDataPath string, fileNames map[string]string, colours ...*sdl.Color) error {
+func (r *sdl_Resources) AddTexturesFromFileMap(renderer *sdl.Renderer, fileNames map[string]string, colours ...*sdl.Color) error {
 	r.cacheLock.Lock()
 	defer r.cacheLock.Unlock()
 	for name, fileName := range fileNames {
-		var fn string
-		if applicationDataPath == "" {
-			fn = fileName
-		} else {
-			fn = filepath.Join(applicationDataPath, fileName)
-		}
+		fn := filepath.Join(r.GetResourceDir(), fileName)
 		tce, err := newTextureCacheEntryForFile(renderer, fn, colours...)
 		if err != nil {
 			return fmt.Errorf("file '%s':%s", fileName, err.Error())
@@ -655,19 +780,6 @@ func (er *sdl_TextureCacheEntryRune) Indexed(index int) *sdl_TextureCacheEntryRu
 		n = n.next
 	}
 	return nil
-}
-
-func mapNamesForError(m map[string]interface{}) string {
-	var sb strings.Builder
-	for n, _ := range m {
-		sb.WriteString(n)
-		sb.WriteString(", ")
-	}
-	s := sb.String()
-	if len(s) > 2 {
-		return s[0 : len(s)-2]
-	}
-	return s
 }
 
 func parseColourString(cs string) (*sdl.Color, error) {
